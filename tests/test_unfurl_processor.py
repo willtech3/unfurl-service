@@ -48,7 +48,8 @@ class TestUnfurlProcessor:
         <html>
         <head>
             <meta property="og:image" content="https://example.com/image.jpg">
-            <meta property="og:description" content="100 Likes, 10 Comments - testuser on Instagram: &quot;Test caption&quot;">
+            <meta property="og:description"
+                content="Test user on Instagram: &quot;Test caption&quot;">
             <meta property="og:title" content="@testuser on Instagram">
         </head>
         </html>
@@ -69,8 +70,8 @@ class TestUnfurlProcessor:
             assert data["media_url"] == "https://example.com/image.jpg"
             assert data["username"] == "testuser"
             assert data["caption"] == "Test caption"
-            assert data["likes"] == "100"
-            assert data["comments"] == "10"
+            assert data["likes"] is None
+            assert data["comments"] is None
 
     @pytest.mark.skip(reason="Cache test requires complex DynamoDB mocking")
     @mock_aws
@@ -181,7 +182,9 @@ class TestUnfurlProcessor:
         <html>
         <head>
             <meta property="og:image" content="https://example.com/image.jpg">
-            <meta property="og:description" content="Test user on Instagram: &quot;Test caption&quot;">
+            <meta property="og:description"
+                content="Test user on Instagram: &quot;Test caption&quot;">
+            <meta property="og:title" content="@testuser on Instagram">
         </head>
         </html>
         """

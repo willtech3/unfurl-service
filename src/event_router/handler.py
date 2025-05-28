@@ -8,8 +8,6 @@ import time
 from typing import Dict, Any
 
 import boto3
-from botocore.exceptions import ClientError
-
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
 

@@ -4,9 +4,8 @@ import json
 import time
 import hmac
 import hashlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, MagicMock
 
-import pytest
 from moto import mock_aws
 
 from src.event_router.handler import lambda_handler, verify_slack_signature
@@ -148,7 +147,6 @@ class TestEventRouter:
     def test_lambda_handler_link_shared_event(self):
         """Test handling link_shared event with Instagram URL."""
         import boto3
-        from unittest.mock import patch, MagicMock
 
         # Setup mocks
         with mock_aws():

@@ -1,11 +1,9 @@
-import json
 import os
 import time
 import re
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
-
 import boto3
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +12,7 @@ from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+import json
 
 # Initialize Powertools
 logger = Logger()
@@ -136,8 +135,15 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
 
         # Fetch the Instagram page
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/webp,*/*;q=0.8"
+            ),
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
@@ -191,7 +197,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         if json_ld:
             try:
                 structured_data = json.loads(json_ld.string)
-            except:
+            except json.JSONDecodeError:
                 pass
 
         # Build the data object
@@ -261,10 +267,13 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
 def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
     """Fetch Instagram data using oEmbed API as fallback."""
     try:
-        oembed_url = f"https://graph.facebook.com/v18.0/instagram_oembed"
+        oembed_url = "https://graph.facebook.com/v18.0/instagram_oembed"
         params = {
             "url": url,
-            "access_token": f"{os.environ.get('FACEBOOK_APP_ID', '')}|{os.environ.get('FACEBOOK_APP_SECRET', '')}",
+            "access_token": (
+                f"{os.environ.get('FACEBOOK_APP_ID', '')}"
+                f"|{os.environ.get('FACEBOOK_APP_SECRET', '')}"
+            ),
             "omitscript": "true",
         }
 
@@ -313,7 +322,10 @@ def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
         "title_link": data.get("permalink"),
         "color": "#E4405F",  # Instagram brand color
         "footer": "Instagram",
-        "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+        "footer_icon": (
+            "https://www.instagram.com/static/images/ico/"
+            "favicon-192.png/68d99ba29cc8.png"
+        ),
     }
 
     # Add image if available
@@ -362,7 +374,7 @@ def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
             # Parse ISO timestamp and convert to Unix timestamp
             dt = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
             unfurl["ts"] = int(dt.timestamp())
-        except:
+        except (ValueError, AttributeError):
             pass
 
     # Add a note if this is from oEmbed fallback
