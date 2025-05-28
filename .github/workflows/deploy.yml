@@ -99,10 +99,10 @@ jobs:
           chmod +x scripts/build_lambda_layer.sh
           ./scripts/build_lambda_layer.sh
 
-      - name: CDK Bootstrap (if needed)
+      - name: CDK Bootstrap
         run: |
           source .venv/bin/activate
-          cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }} || true
+          cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
