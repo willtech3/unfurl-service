@@ -53,18 +53,18 @@ class TestUnfurlProcessor:
         </head>
         </html>
         """
-        
+
         with patch("requests.get") as mock_get:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.text = mock_html
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
-            
+
             from src.unfurl_processor.handler import fetch_instagram_data
-            
+
             data = fetch_instagram_data("https://www.instagram.com/p/ABC123/", "ABC123")
-            
+
             assert data is not None
             assert data["media_url"] == "https://example.com/image.jpg"
             assert data["username"] == "testuser"
@@ -84,7 +84,7 @@ class TestUnfurlProcessor:
             AttributeDefinitions=[{"AttributeName": "url", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        
+
         # Add cached item
         table.put_item(
             Item={
@@ -97,15 +97,21 @@ class TestUnfurlProcessor:
                 "ttl": 9999999999,  # Far future
             }
         )
-        
-        with patch.dict("os.environ", {
-            "CACHE_TABLE_NAME": "instagram-unfurl-cache",
-            "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService"
-        }):
+
+        with patch.dict(
+            "os.environ",
+            {
+                "CACHE_TABLE_NAME": "instagram-unfurl-cache",
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+            },
+        ):
             # Mock both the dynamodb resource and the requests.get call
-            with patch("src.unfurl_processor.handler.boto3.resource", return_value=dynamodb):
+            with patch(
+                "src.unfurl_processor.handler.boto3.resource", return_value=dynamodb
+            ):
                 # Test that cache is retrieved
                 from src.unfurl_processor.handler import get_cached_unfurl
+
                 cached = get_cached_unfurl("https://www.instagram.com/p/ABC123/")
                 assert cached is not None
                 assert cached["title"] == "Cached Instagram Post"
@@ -117,7 +123,7 @@ class TestUnfurlProcessor:
             mock_client = MagicMock()
             mock_slack.return_value = mock_client
             mock_client.chat_unfurl.return_value = {"ok": True}
-            
+
             unfurls = {
                 "https://www.instagram.com/p/ABC123/": {
                     "title": "Instagram Post",
@@ -125,13 +131,13 @@ class TestUnfurlProcessor:
                     "image_url": "https://example.com/image.jpg",
                 }
             }
-            
+
             from src.unfurl_processor.handler import send_unfurl_to_slack
-            
+
             result = send_unfurl_to_slack(
                 mock_client, "C123456", "1234567890.123456", unfurls
             )
-            
+
             assert result is True
             mock_client.chat_unfurl.assert_called_once_with(
                 channel="C123456", ts="1234567890.123456", unfurls=unfurls
@@ -144,25 +150,32 @@ class TestUnfurlProcessor:
             "Records": [
                 {
                     "Sns": {
-                        "Message": json.dumps({
-                            "channel": "C123456",
-                            "message_ts": "1234567890.123456",
-                            "links": [
-                                {"url": "https://www.instagram.com/p/ABC123/", "domain": "instagram.com"}
-                            ],
-                        })
+                        "Message": json.dumps(
+                            {
+                                "channel": "C123456",
+                                "message_ts": "1234567890.123456",
+                                "links": [
+                                    {
+                                        "url": "https://www.instagram.com/p/ABC123/",
+                                        "domain": "instagram.com",
+                                    }
+                                ],
+                            }
+                        )
                     }
                 }
             ]
         }
-        
+
         # Create a mock context
         context = MagicMock()
         context.function_name = "test-function"
         context.memory_limit_in_mb = 128
-        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+        context.invoked_function_arn = (
+            "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+        )
         context.aws_request_id = "test-request-id"
-        
+
         # Mock HTML response for web scraping
         mock_html = """
         <html>
@@ -172,13 +185,16 @@ class TestUnfurlProcessor:
         </head>
         </html>
         """
-        
-        with patch.dict("os.environ", {
-            "CACHE_TABLE_NAME": "instagram-unfurl-cache",
-            "SLACK_SECRET_NAME": "unfurl-service/slack",
-            "CACHE_TTL_HOURS": "24",
-            "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService"
-        }):
+
+        with patch.dict(
+            "os.environ",
+            {
+                "CACHE_TABLE_NAME": "instagram-unfurl-cache",
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "CACHE_TTL_HOURS": "24",
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+            },
+        ):
             with patch("slack_sdk.WebClient") as mock_slack:
                 with patch("requests.get") as mock_get:
                     with patch("boto3.client") as mock_boto_client:
@@ -188,26 +204,26 @@ class TestUnfurlProcessor:
                         mock_secrets_client.get_secret_value.return_value = {
                             "SecretString": json.dumps({"bot_token": "xoxb-test-token"})
                         }
-                        
+
                         # Mock Slack client
                         mock_client = MagicMock()
                         mock_slack.return_value = mock_client
                         mock_client.chat_unfurl.return_value = {"ok": True}
-                        
+
                         # Mock web scraping response
                         mock_response = MagicMock()
                         mock_response.status_code = 200
                         mock_response.text = mock_html
                         mock_response.raise_for_status = MagicMock()
                         mock_get.return_value = mock_response
-                        
+
                         from src.unfurl_processor.handler import lambda_handler
-                        
+
                         result = lambda_handler(event, context)
-                        
+
                         assert result["statusCode"] == 200
                         assert json.loads(result["body"])["message"] == "Success"
-                        
+
                         # Verify Slack was called
                         assert mock_client.chat_unfurl.called
 
@@ -215,18 +231,18 @@ class TestUnfurlProcessor:
         """Test handler with invalid event structure."""
         event = {"invalid": "structure"}
         context = MagicMock()
-        
+
         from src.unfurl_processor.handler import lambda_handler
-        
+
         result = lambda_handler(event, context)
-        
+
         assert result["statusCode"] == 400
         assert "Invalid event structure" in result["body"]
 
     def test_format_unfurl_data(self):
         """Test formatting Instagram data for Slack unfurl."""
         from src.unfurl_processor.handler import format_unfurl_data
-        
+
         # Test with full data
         data = {
             "username": "testuser",
@@ -235,11 +251,11 @@ class TestUnfurlProcessor:
             "caption": "Test caption",
             "likes": "100",
             "comments": "10",
-            "timestamp": "2024-01-01T00:00:00"
+            "timestamp": "2024-01-01T00:00:00",
         }
-        
+
         unfurl = format_unfurl_data(data)
-        
+
         assert unfurl["title"] == "@testuser"
         assert unfurl["title_link"] == "https://www.instagram.com/p/ABC123/"
         assert unfurl["image_url"] == "https://example.com/image.jpg"
@@ -248,37 +264,37 @@ class TestUnfurlProcessor:
         assert len(unfurl["fields"]) == 2
         assert unfurl["fields"][0]["title"] == "Likes"
         assert unfurl["fields"][0]["value"] == "100"
-        
+
         # Test with minimal data
         minimal_data = {
             "username": "user2",
             "permalink": "https://www.instagram.com/p/XYZ/",
-            "media_url": "https://example.com/img.jpg"
+            "media_url": "https://example.com/img.jpg",
         }
-        
+
         minimal_unfurl = format_unfurl_data(minimal_data)
         assert minimal_unfurl["title"] == "@user2"
         assert "fields" not in minimal_unfurl
-        
+
         # Test with None
         assert format_unfurl_data(None) is None
 
     def test_oembed_fallback(self):
         """Test oEmbed fallback when scraping fails."""
         from src.unfurl_processor.handler import fetch_instagram_oembed
-        
+
         with patch("requests.get") as mock_get:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
                 "thumbnail_url": "https://example.com/thumb.jpg",
                 "author_name": "oembed_user",
-                "title": "oEmbed caption"
+                "title": "oEmbed caption",
             }
             mock_get.return_value = mock_response
-            
+
             data = fetch_instagram_oembed("https://www.instagram.com/p/ABC123/")
-            
+
             assert data is not None
             assert data["media_url"] == "https://example.com/thumb.jpg"
             assert data["username"] == "oembed_user"

@@ -143,14 +143,18 @@ class UnfurlServiceStack(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=["https://slack.com"],
                 allow_methods=["POST"],
-                allow_headers=["Content-Type", "X-Slack-Signature", "X-Slack-Request-Timestamp"],
+                allow_headers=[
+                    "Content-Type",
+                    "X-Slack-Signature",
+                    "X-Slack-Request-Timestamp",
+                ],
             ),
         )
 
         # Slack events endpoint
         slack_resource = api.root.add_resource("slack")
         events_resource = slack_resource.add_resource("events")
-        
+
         # Add method with Lambda integration
         events_resource.add_method(
             "POST",
