@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_sns_subscriptions as sns_subs,
     aws_logs as logs,
     aws_secretsmanager as sm,
+    aws_sqs as sqs,
 )
 from constructs import Construct
 
@@ -110,16 +111,18 @@ class UnfurlServiceStack(Stack):
         cache_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
 
-        # Subscribe unfurl processor to SNS topic
+        # Dead Letter Queue for failed Lambda invocations
+        dlq = sqs.Queue(
+            self,
+            "UnfurlDLQ",
+            queue_name=f"unfurl-dlq-{env_name}",
+            retention_period=Duration.days(14),
+        )
+
         unfurl_topic.add_subscription(
             sns_subs.LambdaSubscription(
                 unfurl_processor,
-                dead_letter_queue=sns.Topic(
-                    self,
-                    "UnfurlDLQ",
-                    topic_name=f"unfurl-dlq-{env_name}",
-                    display_name="Unfurl Dead Letter Queue",
-                ),
+                dead_letter_queue=dlq,
             )
         )
 
