@@ -5,31 +5,33 @@ import os
 import hmac
 import hashlib
 import time
-from typing import Dict, Any
-
+from typing import Dict, Any, Optional
+from typing import cast
 import boto3
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
+
+# Type imports for boto3
+from botocore.client import BaseClient
 
 logger = Logger()
 tracer = Tracer()
 
 # Only initialize metrics if not in test mode
+metrics = None
 if os.environ.get("DISABLE_METRICS") != "true":
     from aws_lambda_powertools import Metrics
     from aws_lambda_powertools.metrics import MetricUnit
 
     metrics = Metrics()
-else:
-    metrics = None
 
 
-def get_sns_client():
+def get_sns_client() -> BaseClient:
     """Get SNS client."""
     return boto3.client("sns")
 
 
-def get_secrets_client():
+def get_secrets_client() -> BaseClient:
     """Get Secrets Manager client."""
     return boto3.client("secretsmanager")
 
@@ -66,19 +68,35 @@ def get_slack_secret() -> Dict[str, str]:
         response = secrets_client.get_secret_value(
             SecretId=os.environ.get("SLACK_SECRET_NAME", "unfurl-service/slack")
         )
-        return json.loads(response["SecretString"])
+        secret_string = json.loads(response["SecretString"])
+        return cast(Dict[str, str], secret_string)
     except Exception as e:
         logger.error(f"Error retrieving Slack secret: {str(e)}")
         raise
 
 
-def lambda_handler_impl(
-    event: Dict[str, Any], context: LambdaContext
-) -> Dict[str, Any]:
-    """Handle incoming Slack events and route Instagram links to SNS."""
+@logger.inject_lambda_context(correlation_id_path="requestContext.requestId")
+@tracer.capture_lambda_handler
+def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
+    """Lambda handler for Slack event routing."""
+    logger.info("Received event", extra={"event": event})
+
+    # Check if this is a URL verification challenge
+    body_str = event.get("body", "{}")
+    try:
+        body = json.loads(body_str) if body_str else {}
+    except json.JSONDecodeError:
+        body = {}
+        
+    if body.get("type") == "url_verification":
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"challenge": body.get("challenge")}),
+        }
+
+    # Handle regular Slack events
     try:
         # Parse the request body
-        body = event.get("body", "")
         headers = event.get("headers", {})
 
         # Get Slack signature headers
@@ -90,104 +108,65 @@ def lambda_handler_impl(
         signing_secret = secrets.get("signing_secret", "")
 
         if not verify_slack_signature(
-            body, slack_timestamp, slack_signature, signing_secret
+            body_str, slack_timestamp, slack_signature, signing_secret
         ):
             logger.warning("Invalid Slack signature")
-            if metrics:
-                metrics.add_metric(
-                    name="InvalidSignature", unit=MetricUnit.Count, value=1
-                )
-            return {
-                "statusCode": 403,
-                "body": json.dumps({"error": "Invalid signature"}),
-            }
+            return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
-        # Parse the Slack event
-        slack_event = json.loads(body)
-        event_type = slack_event.get("type")
+        # Process the event
+        event_data = body.get("event", {})
+        event_type = event_data.get("type")
 
-        # Handle URL verification challenge
-        if event_type == "url_verification":
-            challenge = slack_event.get("challenge")
-            logger.info("Handling URL verification challenge")
-            return {"statusCode": 200, "body": json.dumps({"challenge": challenge})}
+        if event_type == "link_shared":
+            # Process link_shared events
+            links = event_data.get("links", [])
+            instagram_links = [
+                link
+                for link in links
+                if link.get("domain") in ["instagram.com", "www.instagram.com"]
+            ]
 
-        # Handle event callbacks
-        if event_type == "event_callback":
-            event_data = slack_event.get("event", {})
+            if instagram_links:
+                # Publish to SNS for processing
+                sns_client = get_sns_client()
+                sns_topic_arn = os.environ.get("SNS_TOPIC_ARN")
 
-            # Only process link_shared events
-            if event_data.get("type") == "link_shared":
-                links = event_data.get("links", [])
-
-                # Filter for Instagram links
-                instagram_links = [
-                    link
-                    for link in links
-                    if link.get("domain") in ["instagram.com", "www.instagram.com"]
-                ]
-
-                if instagram_links:
-                    # Publish to SNS for processing
-                    sns_client = get_sns_client()
-                    sns_topic_arn = os.environ.get("SNS_TOPIC_ARN", "")
-
-                    if not sns_topic_arn:
-                        logger.error("SNS_TOPIC_ARN environment variable not set")
-                        raise ValueError("SNS_TOPIC_ARN not configured")
-
-                    message = {
-                        "channel": event_data.get("channel"),
-                        "message_ts": event_data.get("message_ts"),
-                        "links": instagram_links,
+                if not sns_topic_arn:
+                    logger.error("SNS_TOPIC_ARN not configured")
+                    return {
+                        "statusCode": 500,
+                        "body": json.dumps({"error": "Internal server error"}),
                     }
 
-                    try:
-                        response = sns_client.publish(
-                            TopicArn=sns_topic_arn,
-                            Message=json.dumps(message),
-                            Subject="Instagram Link Unfurl Request",
-                        )
-                        logger.info(
-                            f"Published to SNS with MessageId: {response['MessageId']}"
-                        )
-                    except Exception as sns_error:
-                        logger.error(f"Failed to publish to SNS: {str(sns_error)}")
-                        raise
+                message = {
+                    "channel": event_data.get("channel"),
+                    "message_ts": event_data.get("message_ts"),
+                    "links": instagram_links,
+                }
 
-                    logger.info(
-                        f"Published {len(instagram_links)} Instagram links to SNS"
-                    )
-                    if metrics:
-                        metrics.add_metric(
-                            name="LinkSharedEvent", unit=MetricUnit.Count, value=1
-                        )
+                sns_client.publish(
+                    TopicArn=sns_topic_arn,
+                    Message=json.dumps(message),
+                    MessageAttributes={
+                        "event_type": {"DataType": "String", "StringValue": event_type}
+                    },
+                )
 
-        return {"statusCode": 200, "body": json.dumps({"ok": True})}
+                logger.info(
+                    "Published Instagram links to SNS",
+                    extra={"links": instagram_links, "channel": event_data.get("channel")},
+                )
+
+                if metrics:
+                    metrics.add_metric(name="LinksProcessed", unit=MetricUnit.Count, value=len(instagram_links))
+
+        return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
     except Exception as e:
-        logger.error(f"Error processing event: {str(e)}")
+        logger.error("Error processing event", extra={"error": str(e)})
         if metrics:
-            metrics.add_metric(name="ProcessingError", unit=MetricUnit.Count, value=1)
+            metrics.add_metric(name="ProcessingErrors", unit=MetricUnit.Count, value=1)
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal server error"}),
         }
-
-
-@logger.inject_lambda_context(correlation_id_path="requestContext.requestId")
-@tracer.capture_lambda_handler
-def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
-    """Lambda handler with decorators."""
-    if metrics:
-        # Apply metrics decorator
-        @metrics.log_metrics(capture_cold_start_metric=True)
-        def handler_with_metrics(
-            event: Dict[str, Any], context: LambdaContext
-        ) -> Dict[str, Any]:
-            return lambda_handler_impl(event, context)
-
-        return handler_with_metrics(event, context)
-    else:
-        # No metrics decorator
-        return lambda_handler_impl(event, context)

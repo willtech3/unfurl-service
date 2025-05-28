@@ -13,6 +13,11 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import json
+from typing import cast
+
+# Type imports for boto3
+from boto3.resources.base import ServiceResource
+from botocore.client import BaseClient
 
 # Initialize Powertools
 logger = Logger()
@@ -33,12 +38,12 @@ CACHE_TTL_HOURS = int(os.environ.get("CACHE_TTL_HOURS", "24"))
 _secrets_cache: Dict[str, Dict[str, Any]] = {}
 
 
-def get_dynamodb_resource():
+def get_dynamodb_resource() -> ServiceResource:
     """Get DynamoDB resource."""
     return boto3.resource("dynamodb")
 
 
-def get_secrets_client():
+def get_secrets_client() -> BaseClient:
     """Get Secrets Manager client."""
     return boto3.client("secretsmanager")
 
@@ -86,7 +91,8 @@ def get_cached_unfurl(url: str) -> Optional[Dict[str, Any]]:
                 logger.info("Cache hit for URL", extra={"url": url})
                 if metrics:
                     metrics.add_metric(name="CacheHit", unit=MetricUnit.Count, value=1)
-                return item.get("unfurl_data")
+                unfurl_data = item.get("unfurl_data")
+                return cast(Optional[Dict[str, Any]], unfurl_data)
 
         if metrics:
             metrics.add_metric(name="CacheMiss", unit=MetricUnit.Count, value=1)
@@ -128,9 +134,7 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         # Check cache first
         cached_data = get_cached_unfurl(url)
         if cached_data:
-            # Parse the cached JSON string if needed
-            if isinstance(cached_data, str):
-                return json.loads(cached_data)
+            # cached_data is already a dict, not a string
             return cached_data
 
         # Fetch the Instagram page
@@ -194,7 +198,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         # Extract from JSON-LD structured data
         json_ld = soup.find("script", type="application/ld+json")
         structured_data = None
-        if json_ld:
+        if json_ld and hasattr(json_ld, 'string'):
             try:
                 structured_data = json.loads(json_ld.string)
             except json.JSONDecodeError:
@@ -208,12 +212,14 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         }
 
         # Extract image URL
-        if og_image:
-            data["media_url"] = og_image.get("content")
-            data["media_type"] = "IMAGE"
+        if og_image and hasattr(og_image, 'get'):
+            content = og_image.get("content")
+            if content:
+                data["media_url"] = content
+                data["media_type"] = "IMAGE"
 
         # Extract caption and username
-        if og_description:
+        if og_description and hasattr(og_description, 'get'):
             description = og_description.get("content", "")
             # Try to parse Instagram's description format
             match = re.match(
@@ -239,7 +245,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                     data["caption"] = description
 
         # Extract from title if needed
-        if og_title and "username" not in data:
+        if og_title and hasattr(og_title, 'get'):
             title = og_title.get("content", "")
             match = re.search(r"@(\w+)", title)
             if match:
@@ -312,11 +318,7 @@ def extract_post_id(url: str) -> str:
 
 
 def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Format Instagram data into Slack unfurl format."""
-    if not data:
-        return None
-
-    # Build the unfurl attachment
+    """Format Instagram data for Slack unfurl."""
     unfurl = {
         "title": f"@{data.get('username', 'Instagram User')}",
         "title_link": data.get("permalink"),
