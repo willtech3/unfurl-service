@@ -99,37 +99,6 @@ jobs:
           chmod +x scripts/build_lambda_layer.sh
           ./scripts/build_lambda_layer.sh
 
-      - name: Check and Fix CDK Bootstrap
-        run: |
-          source .venv/bin/activate
-          
-          # Check if CDKToolkit stack exists and its status
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
-          
-          echo "Current CDKToolkit stack status: $STACK_STATUS"
-          
-          case $STACK_STATUS in
-            "CREATE_COMPLETE"|"UPDATE_COMPLETE")
-              echo "CDK bootstrap is already complete and healthy"
-              ;;
-            "DELETE_FAILED"|"CREATE_FAILED"|"UPDATE_FAILED"|"ROLLBACK_COMPLETE"|"ROLLBACK_FAILED")
-              echo "CDK bootstrap stack is in failed state ($STACK_STATUS), deleting and recreating..."
-              aws cloudformation delete-stack --stack-name CDKToolkit --region ${{ env.AWS_REGION }} || true
-              aws cloudformation wait stack-delete-complete --stack-name CDKToolkit --region ${{ env.AWS_REGION }} || true
-              echo "Running CDK bootstrap..."
-              cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
-              ;;
-            "NOT_FOUND")
-              echo "CDK bootstrap stack not found, creating..."
-              cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
-              ;;
-            *)
-              echo "CDK bootstrap stack in unexpected state ($STACK_STATUS), attempting bootstrap..."
-              cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
-              ;;
-          esac
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
       - name: CDK Synth
         run: |
