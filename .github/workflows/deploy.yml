@@ -99,7 +99,19 @@ jobs:
           chmod +x scripts/build_lambda_layer.sh
           ./scripts/build_lambda_layer.sh
 
+      - name: Check CDK Bootstrap Status
+        id: check-bootstrap
+        run: |
+          if aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null | grep -E '(CREATE_COMPLETE|UPDATE_COMPLETE)'; then
+            echo "bootstrap_needed=false" >> $GITHUB_OUTPUT
+            echo "CDK bootstrap already exists and is ready"
+          else
+            echo "bootstrap_needed=true" >> $GITHUB_OUTPUT
+            echo "CDK bootstrap required"
+          fi
+
       - name: CDK Bootstrap
+        if: steps.check-bootstrap.outputs.bootstrap_needed == 'true'
         run: |
           source .venv/bin/activate
           cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
