@@ -104,8 +104,8 @@ jobs:
           source .venv/bin/activate
           # Check if bootstrap SSM parameter exists
           if ! aws ssm get-parameter --name "/cdk-bootstrap/hnb659fds/version" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
-            echo "CDK bootstrap required - SSM parameter not found"
-            cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
+            echo "CDK bootstrap required or repair needed - running with --force"
+            cdk bootstrap --force aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
           else
             echo "CDK bootstrap already complete - SSM parameter exists"
           fi
