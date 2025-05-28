@@ -40,12 +40,14 @@ _secrets_cache: Dict[str, Dict[str, Any]] = {}
 
 def get_dynamodb_resource() -> ServiceResource:
     """Get DynamoDB resource."""
-    return boto3.resource("dynamodb")
+    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
+    return boto3.resource("dynamodb", region_name=region)
 
 
 def get_secrets_client() -> BaseClient:
     """Get Secrets Manager client."""
-    return boto3.client("secretsmanager")
+    region = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
+    return boto3.client("secretsmanager", region_name=region)
 
 
 @tracer.capture_method
@@ -198,7 +200,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         # Extract from JSON-LD structured data
         json_ld = soup.find("script", type="application/ld+json")
         structured_data = None
-        if json_ld and hasattr(json_ld, 'string'):
+        if json_ld and hasattr(json_ld, "string"):
             try:
                 structured_data = json.loads(json_ld.string)
             except json.JSONDecodeError:
@@ -209,17 +211,19 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
             "id": extract_post_id(url),
             "permalink": url,
             "timestamp": datetime.utcnow().isoformat(),
+            "likes": None,
+            "comments": None,
         }
 
         # Extract image URL
-        if og_image and hasattr(og_image, 'get'):
+        if og_image and hasattr(og_image, "get"):
             content = og_image.get("content")
             if content:
                 data["media_url"] = content
                 data["media_type"] = "IMAGE"
 
         # Extract caption and username
-        if og_description and hasattr(og_description, 'get'):
+        if og_description and hasattr(og_description, "get"):
             description = og_description.get("content", "")
             # Try to parse Instagram's description format
             match = re.match(
@@ -245,7 +249,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                     data["caption"] = description
 
         # Extract from title if needed
-        if og_title and hasattr(og_title, 'get'):
+        if og_title and hasattr(og_title, "get"):
             title = og_title.get("content", "")
             match = re.search(r"@(\w+)", title)
             if match:
@@ -317,8 +321,10 @@ def extract_post_id(url: str) -> str:
     return match.group(2) if match else ""
 
 
-def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
+def format_unfurl_data(data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Format Instagram data for Slack unfurl."""
+    if data is None:
+        return None
     unfurl = {
         "title": f"@{data.get('username', 'Instagram User')}",
         "title_link": data.get("permalink"),
@@ -349,7 +355,13 @@ def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "title": "Likes",
                 "value": (
-                    f"{data['likes']:,}" if data["likes"].isdigit() else data["likes"]
+                    f"{int(str(data['likes']).replace(',', '')):,}"
+                    if isinstance(data["likes"], (int, float))
+                    or (
+                        isinstance(data["likes"], str)
+                        and str(data["likes"]).replace(",", "").isdigit()
+                    )
+                    else str(data["likes"])
                 ),
                 "short": True,
             }
@@ -359,9 +371,13 @@ def format_unfurl_data(data: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "title": "Comments",
                 "value": (
-                    f"{data['comments']:,}"
-                    if data["comments"].isdigit()
-                    else data["comments"]
+                    f"{int(str(data['comments']).replace(',', '')):,}"
+                    if isinstance(data["comments"], (int, float))
+                    or (
+                        isinstance(data["comments"], str)
+                        and str(data["comments"]).replace(",", "").isdigit()
+                    )
+                    else str(data["comments"])
                 ),
                 "short": True,
             }

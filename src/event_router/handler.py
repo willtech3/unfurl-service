@@ -5,7 +5,7 @@ import os
 import hmac
 import hashlib
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from typing import cast
 import boto3
 from aws_lambda_powertools import Logger, Tracer
@@ -25,15 +25,18 @@ if os.environ.get("DISABLE_METRICS") != "true":
 
     metrics = Metrics()
 
+# Default AWS region to use when creating clients (helps unit tests)
+DEFAULT_AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
+
 
 def get_sns_client() -> BaseClient:
     """Get SNS client."""
-    return boto3.client("sns")
+    return boto3.client("sns", region_name=DEFAULT_AWS_REGION)
 
 
 def get_secrets_client() -> BaseClient:
     """Get Secrets Manager client."""
-    return boto3.client("secretsmanager")
+    return boto3.client("secretsmanager", region_name=DEFAULT_AWS_REGION)
 
 
 def verify_slack_signature(
@@ -87,7 +90,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         body = json.loads(body_str) if body_str else {}
     except json.JSONDecodeError:
         body = {}
-        
+
     if body.get("type") == "url_verification":
         return {
             "statusCode": 200,
@@ -154,11 +157,18 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
 
                 logger.info(
                     "Published Instagram links to SNS",
-                    extra={"links": instagram_links, "channel": event_data.get("channel")},
+                    extra={
+                        "links": instagram_links,
+                        "channel": event_data.get("channel"),
+                    },
                 )
 
                 if metrics:
-                    metrics.add_metric(name="LinksProcessed", unit=MetricUnit.Count, value=len(instagram_links))
+                    metrics.add_metric(
+                        name="LinksProcessed",
+                        unit=MetricUnit.Count,
+                        value=len(instagram_links),
+                    )
 
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 

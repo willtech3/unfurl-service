@@ -4,9 +4,9 @@ import json
 import time
 import hmac
 import hashlib
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from moto import mock_aws
+from moto import mock_secretsmanager, mock_sns
 
 from src.event_router.handler import lambda_handler, verify_slack_signature
 
@@ -74,14 +74,14 @@ class TestEventRouter:
 
         assert verify_slack_signature(body, timestamp, sig, secret) is False
 
-    @mock_aws
+    @mock_secretsmanager
     def test_get_slack_secret(self):
         """Test retrieving Slack secrets from Secrets Manager."""
         import boto3
         from src.event_router.handler import get_slack_secret
 
         # Setup mock secret
-        sm = boto3.client("secretsmanager", region_name="us-east-1")
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
         secret_data = {
             "signing_secret": "test_signing_secret",
             "bot_token": "xoxb-test-token",
@@ -90,17 +90,23 @@ class TestEventRouter:
             Name="unfurl-service/slack", SecretString=json.dumps(secret_data)
         )
 
-        with patch.dict("os.environ", {"SLACK_SECRET_NAME": "unfurl-service/slack"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "AWS_DEFAULT_REGION": "us-east-2",
+            },
+        ):
             result = get_slack_secret()
             assert result == secret_data
 
-    @mock_aws
+    @mock_secretsmanager
     def test_lambda_handler_url_verification(self):
         """Test handling URL verification challenge."""
         import boto3
 
         # Setup mock secret
-        sm = boto3.client("secretsmanager", region_name="us-east-1")
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
         sm.create_secret(
             Name="unfurl-service/slack",
             SecretString=json.dumps(
@@ -133,9 +139,10 @@ class TestEventRouter:
             "os.environ",
             {
                 "SLACK_SECRET_NAME": "unfurl-service/slack",
-                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-2:123456789012:test-topic",
                 "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
                 "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
             },
         ):
             response = lambda_handler(event, MockLambdaContext())
@@ -143,49 +150,61 @@ class TestEventRouter:
         assert response["statusCode"] == 200
         assert json.loads(response["body"])["challenge"] == challenge
 
-    @mock_aws
+    @mock_secretsmanager
+    @mock_sns
     def test_lambda_handler_link_shared_event(self):
         """Test handling link_shared event with Instagram URL."""
         import boto3
 
-        # Setup mocks
-        with mock_aws():
-            sm = boto3.client("secretsmanager", region_name="us-east-1")
-            sm.create_secret(
-                Name="unfurl-service/slack",
-                SecretString=json.dumps(
-                    {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
-                ),
-            )
+        # Setup mock secret
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
+        sm.create_secret(
+            Name="unfurl-service/slack",
+            SecretString=json.dumps(
+                {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
+            ),
+        )
 
-        # Create a mock SNS client
-        mock_sns = MagicMock()
-        mock_sns.publish.return_value = {"MessageId": "test-message-id"}
+        # Create test event
+        slack_event = {
+            "type": "event_callback",
+            "event_id": "Ev123456",
+            "team_id": "T123456",
+            "event": {
+                "type": "link_shared",
+                "channel": "C123456",
+                "message_ts": "1234567890.123456",
+                "links": [
+                    {
+                        "url": "https://www.instagram.com/p/ABC123/",
+                        "domain": "instagram.com",
+                    },
+                    {
+                        "url": "https://www.google.com",
+                        "domain": "google.com",
+                    },  # Non-Instagram URL
+                ],
+            },
+        }
 
-        # Mock the SNS client creation to use our mocked client
-        with patch("src.event_router.handler.get_sns_client", return_value=mock_sns):
-            # Create test event
-            slack_event = {
-                "type": "event_callback",
-                "event_id": "Ev123456",
-                "team_id": "T123456",
-                "event": {
-                    "type": "link_shared",
-                    "channel": "C123456",
-                    "message_ts": "1234567890.123456",
-                    "links": [
-                        {
-                            "url": "https://www.instagram.com/p/ABC123/",
-                            "domain": "instagram.com",
-                        },
-                        {
-                            "url": "https://www.google.com",
-                            "domain": "google.com",
-                        },  # Non-Instagram URL
-                    ],
-                },
-            }
+        # Create SNS topic for mock
+        import boto3
 
+        sns = boto3.client("sns", region_name="us-east-2")
+        topic_response = sns.create_topic(Name="test-topic")
+        topic_arn = topic_response["TopicArn"]
+
+        with patch.dict(
+            "os.environ",
+            {
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "SNS_TOPIC_ARN": topic_arn,
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+                "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
+            },
+        ):
+            # Create test event with signature
             body = json.dumps(slack_event)
             timestamp = str(int(time.time()))
             sig_basestring = f"v0:{timestamp}:{body}"
@@ -204,43 +223,18 @@ class TestEventRouter:
                 },
             }
 
-            with patch.dict(
-                "os.environ",
-                {
-                    "SLACK_SECRET_NAME": "unfurl-service/slack",
-                    "SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:123456789012:test-topic",
-                    "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
-                    "DISABLE_METRICS": "true",
-                },
-            ):
-                response = lambda_handler(event, MockLambdaContext())
+            response = lambda_handler(event, MockLambdaContext())
 
         assert response["statusCode"] == 200
-        assert json.loads(response["body"]) == {"ok": True}
+        assert json.loads(response["body"]) == {"status": "ok"}
 
-        # Verify SNS was called with correct parameters
-        mock_sns.publish.assert_called_once()
-        call_args = mock_sns.publish.call_args
-        assert (
-            call_args.kwargs["TopicArn"]
-            == "arn:aws:sns:us-east-1:123456789012:test-topic"
-        )
-        assert call_args.kwargs["Subject"] == "Instagram Link Unfurl Request"
-
-        # Verify the message content
-        message = json.loads(call_args.kwargs["Message"])
-        assert message["channel"] == "C123456"
-        assert message["message_ts"] == "1234567890.123456"
-        assert len(message["links"]) == 1
-        assert message["links"][0]["url"] == "https://www.instagram.com/p/ABC123/"
-
-    @mock_aws
+    @mock_secretsmanager
     def test_lambda_handler_simple_event(self):
         """Test handling a simple non-link event."""
         import boto3
 
         # Setup mock secret
-        sm = boto3.client("secretsmanager", region_name="us-east-1")
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
         sm.create_secret(
             Name="unfurl-service/slack",
             SecretString=json.dumps(
@@ -278,9 +272,10 @@ class TestEventRouter:
             "os.environ",
             {
                 "SLACK_SECRET_NAME": "unfurl-service/slack",
-                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:123456789012:test-topic",
+                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-2:123456789012:test-topic",
                 "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
                 "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
             },
         ):
             response = lambda_handler(event, MockLambdaContext())

@@ -8,11 +8,9 @@ from aws_cdk import (
     aws_sns as sns,
     aws_sns_subscriptions as sns_subs,
     aws_logs as logs,
-    aws_iam as iam,
     aws_secretsmanager as sm,
 )
 from constructs import Construct
-import os
 
 
 class UnfurlServiceStack(Stack):
