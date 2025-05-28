@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # C extensions
 *.so
@@ -98,7 +99,7 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-#uv.lock
+uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -135,6 +136,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.deployment
+
+# Deployment documentation with sensitive info
+DEPLOYMENT_GUIDE.md
 
 # Spyder project settings
 .spyderproject
@@ -172,3 +177,58 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Python
+*.so
+.pytest_cache/
+.coverage
+.tox/
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# CDK
+.cdk.staging
+cdk.out/
+cdk.context.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Lambda packages
+lambda_layers/
+*.zip
+
+# Logs
+logs/
+*.log
+
+# Testing
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
