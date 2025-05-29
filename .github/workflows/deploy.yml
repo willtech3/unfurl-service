@@ -99,6 +99,23 @@ jobs:
           chmod +x scripts/build_lambda_layer.sh
           ./scripts/build_lambda_layer.sh
 
+      - name: Ensure CDK bootstrap stack exists
+        run: |
+          source .venv/bin/activate
+          set -e
+          STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
+          if [[ "$STATUS" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
+            echo "CDK bootstrap stack already in good state ($STATUS) – skipping bootstrap."
+          elif [[ "$STATUS" == "NOT_FOUND" ]]; then
+            echo "CDK bootstrap stack not found – running initial bootstrap."
+            cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
+          else
+            echo "CDK bootstrap stack is in status $STATUS – failing build. Delete or repair the stack manually if needed."
+            exit 1
+          fi
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
       - name: CDK Synth
         run: |
           source .venv/bin/activate
