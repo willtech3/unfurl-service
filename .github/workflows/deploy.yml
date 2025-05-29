@@ -109,8 +109,33 @@ jobs:
           elif [[ "$STATUS" == "NOT_FOUND" ]]; then
             echo "CDK bootstrap stack not found – running initial bootstrap."
             cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
+          elif [[ "$STATUS" =~ ^(DELETE_FAILED|ROLLBACK_COMPLETE|ROLLBACK_FAILED|UPDATE_ROLLBACK_FAILED)$ ]]; then
+            echo "CDK bootstrap stack is in a failed state ($STATUS). Attempting automatic repair…"
+            # Best-effort cleanup of retained asset bucket
+            ASSET_BUCKET="cdk-hnb659fds-assets-${{ secrets.AWS_ACCOUNT_ID }}-${{ env.AWS_REGION }}"
+            if aws s3 ls "s3://$ASSET_BUCKET" >/dev/null 2>&1; then
+              echo "Emptying asset bucket $ASSET_BUCKET"
+              aws s3 rm "s3://$ASSET_BUCKET" --recursive || true
+              aws s3 rb  "s3://$ASSET_BUCKET" --force     || true
+            fi
+            # Best-effort cleanup of container asset ECR repo
+            ECR_REPO="cdk-hnb659fds-container-assets-${{ secrets.AWS_ACCOUNT_ID }}-${{ env.AWS_REGION }}"
+            if aws ecr describe-repositories --repository-names "$ECR_REPO" --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+              echo "Deleting ECR repository $ECR_REPO"
+              IMAGE_IDS=$(aws ecr list-images --repository-name "$ECR_REPO" --query 'imageIds[*]' --output json --region ${{ env.AWS_REGION }} | jq -c '.')
+              if [[ "$IMAGE_IDS" != "[]" ]]; then
+                aws ecr batch-delete-image --repository-name "$ECR_REPO" --image-ids "$IMAGE_IDS" --region ${{ env.AWS_REGION }} || true
+              fi
+              aws ecr delete-repository --repository-name "$ECR_REPO" --force --region ${{ env.AWS_REGION }} || true
+            fi
+            # Delete the failed stack and wait for completion
+            aws cloudformation delete-stack --stack-name CDKToolkit --region ${{ env.AWS_REGION }} || true
+            echo "Waiting for CDKToolkit stack deletion to complete (up to 10 minutes)…"
+            aws cloudformation wait stack-delete-complete --stack-name CDKToolkit --region ${{ env.AWS_REGION }} || true
+            echo "Running fresh bootstrap…"
+            cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
           else
-            echo "CDK bootstrap stack is in status $STATUS – failing build so it can be fixed manually."
+            echo "CDK bootstrap stack is in unexpected status $STATUS – failing build."
             exit 1
           fi
         env:
