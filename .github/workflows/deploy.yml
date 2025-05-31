@@ -140,7 +140,7 @@ jobs:
         run: |
           source .venv/bin/activate
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --verbose
+          cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --no-previous-parameters --verbose
         env:
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
           CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
