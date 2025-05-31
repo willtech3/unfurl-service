@@ -121,13 +121,13 @@ jobs:
       - name: CDK Synth
         run: |
           source .venv/bin/activate
-          cdk synth
+          cdk synth --qualifier $CDK_QUALIFIER
 
       - name: CDK Deploy
         run: |
           source .venv/bin/activate
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          cdk deploy --all --require-approval never
+          cdk deploy --all --require-approval never --qualifier $CDK_QUALIFIER
         env:
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
           CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
