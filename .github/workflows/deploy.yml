@@ -121,7 +121,7 @@ jobs:
       - name: CDK Synth
         run: |
           source .venv/bin/activate
-          cdk synth -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" -o cdk.out
+          cdk synth --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" -o cdk.out
 
       - name: Check synthesized qualifier
         run: |
@@ -129,11 +129,18 @@ jobs:
           grep -r --line-number "/cdk-bootstrap/" cdk.out || true
           echo "--- End of qualifier check ---"
 
+      - name: Debug bootstrap parameters
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "AWS Account: $ACCOUNT_ID, Region: $AWS_REGION"
+          echo "Listing SSM parameters under /cdk-bootstrap/ ..."
+          aws ssm get-parameters-by-path --path /cdk-bootstrap/ --region $AWS_REGION --query "Parameters[].Name" || true
+
       - name: CDK Deploy
         run: |
           source .venv/bin/activate
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          cdk deploy -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --verbose
+          cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --verbose
         env:
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
           CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
