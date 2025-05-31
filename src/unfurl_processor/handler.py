@@ -27,7 +27,7 @@ tracer = Tracer()
 if os.environ.get("DISABLE_METRICS") == "true":
     metrics = None
 else:
-    metrics = Metrics()
+    metrics = Metrics(namespace=os.environ.get("POWERTOOLS_METRICS_NAMESPACE", "UnfurlService"))
 
 # Environment variables
 CACHE_TABLE_NAME = os.environ.get("CACHE_TABLE_NAME", "unfurl-cache")
