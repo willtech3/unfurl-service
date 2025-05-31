@@ -12,6 +12,7 @@ exclude =
     .pytest_cache,
     .mypy_cache,
     cdk.out,
-    lambda_layers
+    lambda_layers,
+    cdk/node_modules
 per-file-ignores =
     __init__.py:F401

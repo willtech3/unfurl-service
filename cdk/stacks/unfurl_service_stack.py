@@ -32,8 +32,10 @@ class UnfurlServiceStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
+            point_in_time_recovery_specification=(
+                dynamodb.PointInTimeRecoverySpecification(
+                    point_in_time_recovery_enabled=True
+                )
             ),
         )
 
@@ -122,10 +124,7 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(
-                unfurl_processor,
-                dead_letter_queue=dlq,
-            )
+            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
         )
 
         # API Gateway for Slack events
@@ -166,8 +165,7 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200",
-                        response_templates={"application/json": ""},
+                        status_code="200", response_templates={"application/json": ""},
                     )
                 ],
             ),

@@ -28,9 +28,7 @@ if os.environ.get("DISABLE_METRICS") == "true":
     metrics = None
 else:
     metrics = Metrics(
-        namespace=os.environ.get(
-            "POWERTOOLS_METRICS_NAMESPACE", "UnfurlService"
-        )
+        namespace=os.environ.get("POWERTOOLS_METRICS_NAMESPACE", "UnfurlService")
     )
 
 # Environment variables
@@ -412,20 +410,12 @@ def send_unfurl_to_slack(
 ) -> bool:
     """Send unfurl data to Slack."""
     try:
-        response = slack_client.chat_unfurl(
-            channel=channel,
-            ts=ts,
-            unfurls=unfurls,
-        )
+        response = slack_client.chat_unfurl(channel=channel, ts=ts, unfurls=unfurls)
 
         if response["ok"]:
             logger.info(
                 "Successfully sent unfurl to Slack",
-                extra={
-                    "channel": channel,
-                    "ts": ts,
-                    "urls": list(unfurls.keys()),
-                },
+                extra={"channel": channel, "ts": ts, "urls": list(unfurls.keys())},
             )
             if metrics:
                 metrics.add_metric(name="UnfurlSuccess", unit=MetricUnit.Count, value=1)
@@ -435,13 +425,7 @@ def send_unfurl_to_slack(
             return False
 
     except SlackApiError as e:
-        logger.error(
-            "Slack API error",
-            extra={
-                "error": str(e),
-                "response": e.response,
-            },
-        )
+        logger.error("Slack API error", extra={"error": str(e), "response": e.response})
         if metrics:
             metrics.add_metric(name="SlackAPIError", unit=MetricUnit.Count, value=1)
         return False
@@ -476,10 +460,7 @@ def _lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, 
 
             logger.info(
                 f"Processing {len(links)} Instagram links",
-                extra={
-                    "channel": channel,
-                    "message_ts": message_ts,
-                },
+                extra={"channel": channel, "message_ts": message_ts},
             )
 
             # Build unfurls for each link
@@ -505,10 +486,7 @@ def _lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, 
             else:
                 logger.warning(
                     "No unfurls to send",
-                    extra={
-                        "channel": channel,
-                        "message_ts": message_ts,
-                    },
+                    extra={"channel": channel, "message_ts": message_ts},
                 )
 
         return {"statusCode": 200, "body": json.dumps({"message": "Success"})}
