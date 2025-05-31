@@ -104,6 +104,7 @@ jobs:
         run: |
           source .venv/bin/activate
           set -euo pipefail
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           STACK_NAME=CDKToolkit
           STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ env.AWS_REGION }} --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
           if [[ "$STATUS" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
@@ -115,9 +116,7 @@ jobs:
             aws cloudformation delete-stack --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}
             aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}
           fi
-          cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --force --require-approval never
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          cdk bootstrap aws://$ACCOUNT_ID/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --force --require-approval never
 
       - name: CDK Synth
         run: |
@@ -127,7 +126,8 @@ jobs:
       - name: CDK Deploy
         run: |
           source .venv/bin/activate
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           cdk deploy --all --require-approval never
         env:
-          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
