@@ -19,8 +19,8 @@ from typing import cast
 from boto3.resources.base import ServiceResource
 from botocore.client import BaseClient
 
-# Initialize Powertools logger with a service name for better observability.
-# Default to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not explicitly set.
+# Initialize Powertools logger with a service name.
+# Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
 logger = Logger(service=os.getenv("POWERTOOLS_SERVICE_NAME", "UnfurlService"))
 tracer = Tracer()
 
@@ -160,7 +160,7 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         }
 
         response = requests.get(url, headers=headers, timeout=10)
-        # Log response status upfront to help with troubleshooting latency or throttling issues
+        # Log response status to help troubleshoot latency or throttling.
         logger.debug(
             "Fetched Instagram page",
             extra={
@@ -391,8 +391,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data",
-            extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
         )
 
     return None
