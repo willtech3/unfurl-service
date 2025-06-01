@@ -319,10 +319,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             if resp.status_code == 200:
                 return _convert_oembed(resp.json())
             logger.debug(
-                (
-                    "Graph oEmbed request failed, "
-                    "falling back to legacy endpoint"
-                ),
+                ("Graph oEmbed request failed, " "falling back to legacy endpoint"),
                 extra={"status_code": resp.status_code, "url": url},
             )
 
