@@ -63,7 +63,7 @@ class TestUnfurlProcessor:
 
             from src.unfurl_processor.handler import fetch_instagram_data
 
-            data = fetch_instagram_data("https://www.instagram.com/p/ABC123/", "ABC123")
+            data = fetch_instagram_data("https://www.instagram.com/p/ABC123/")
 
             assert data is not None
             assert data["media_url"] == "https://example.com/image.jpg"
@@ -249,7 +249,7 @@ class TestUnfurlProcessor:
                             result = lambda_handler(event, context)
 
                             # Verify function returns response (may fail due to
-                            # Slack/DynamoDB errors but shouldn't crash)
+                            # Slack/DynamoDB errors but shouldn’t crash)
                             assert result is not None
                             assert "statusCode" in result
                             assert "body" in result

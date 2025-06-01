@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import random
 from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -11,13 +12,13 @@ import requests
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from bs4 import BeautifulSoup
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 # Type imports for boto3
 from boto3.resources.base import ServiceResource
 from botocore.client import BaseClient
-from bs4 import BeautifulSoup
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
@@ -133,11 +134,11 @@ def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
 
 
 @tracer.capture_method
-def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch Instagram post data using web scraping.
+def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch Instagram post data by scraping the HTML page.
 
-    The function first tries to scrape the canonical Instagram page. If scraping
-    fails, it falls back to the oEmbed endpoints. All cache operations use the
+    Falls back to oEmbed API if scraping doesn't work. Uses the
     canonical URL to avoid duplicate cache entries for the same post with
     different query parameters (e.g. `?img_index`).
     """
@@ -150,25 +151,65 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         if cached_data:
             return cached_data
 
-        # Fetch the Instagram page
-        headers = {
-            "User-Agent": (
+        # Fetch the Instagram page with enhanced headers and user agent rotation
+        user_agents = [
+            (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/91.0.4472.124 Safari/537.36"
+                "Chrome/120.0.0.0 Safari/537.36"
             ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/119.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.1 Safari/605.1.15"
+            ),
+        ]
+
+        headers = {
+            "User-Agent": random.choice(user_agents),
             "Accept": (
-                "text/html,application/xhtml+xml,application/xml;"
-                "q=0.9,image/webp,*/*;q=0.8"
+                "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                "image/avif,image/webp,image/apng,*/*;q=0.8"
             ),
-            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Language": "en-US,en;q=0.9",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
+            "DNT": "1",
+            "Sec-CH-UA": (
+                '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+            ),
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": '"Windows"',
         }
 
-        response = requests.get(canonical_url, headers=headers, timeout=10)
-        logger.debug(
+        # Add random delay to appear more human-like
+        time.sleep(random.uniform(0.5, 2.0))
+
+        logger.debug("Making request to Instagram", extra={"url": canonical_url})
+
+        response = requests.get(canonical_url, headers=headers, timeout=15)
+        logger.info(
             "Fetched Instagram page",
             extra={
                 "status_code": response.status_code,
@@ -178,11 +219,51 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         )
         response.raise_for_status()
 
+        # Log response content snippet for debugging
+        logger.debug(
+            "Instagram page content snippet",
+            extra={
+                "url": canonical_url,
+                "content_snippet": response.text[:500],
+                "contains_meta_tags": '<meta property="og:' in response.text,
+                "contains_json_ld": "application/ld+json" in response.text,
+                "title_tag": (
+                    response.text[
+                        response.text.find("<title") : response.text.find("</title>")
+                        + 8
+                    ]
+                    if "<title" in response.text
+                    else "No title found"
+                ),
+            },
+        )
+
         # Parse the HTML
         soup = BeautifulSoup(response.text, "html.parser")
 
         # Extract data from meta tags and scripts
         data = extract_instagram_data(soup, url)
+
+        # Enhanced debugging for extraction failures
+        if not data:
+            logger.warning(
+                "HTML scrape yielded no data - debugging extraction",
+                extra={
+                    "url": url,
+                    "meta_og_image": bool(soup.find("meta", property="og:image")),
+                    "meta_og_description": bool(
+                        soup.find("meta", property="og:description")
+                    ),
+                    "meta_og_title": bool(soup.find("meta", property="og:title")),
+                    "json_ld_scripts": len(
+                        soup.find_all("script", type="application/ld+json")
+                    ),
+                    "all_meta_tags": [
+                        tag.get("property", tag.get("name", ""))
+                        for tag in soup.find_all("meta")
+                    ],
+                },
+            )
 
         # Fallback to oEmbed API if scraping did not return data
         if not data:
@@ -223,8 +304,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta",
-                    attrs={"name": n},
+                    "meta", attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -415,12 +495,26 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
     try:
         # 1️⃣ Attempt Graph endpoint which requires app credentials
         if app_id and app_secret:
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "DNT": "1",
+            }
             params = {
                 "url": url,
                 "access_token": f"{app_id}|{app_secret}",
                 "omitscript": "true",
             }
-            resp = requests.get(graph_endpoint, params=params, timeout=10)
+            resp = requests.get(
+                graph_endpoint, params=params, headers=headers, timeout=15
+            )
             logger.debug(
                 "Graph oEmbed response",
                 extra={
@@ -449,8 +543,20 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                 )
 
         # 2️⃣ Legacy endpoint does not need credentials and still works for public posts
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "DNT": "1",
+        }
         params = {"url": url, "omitscript": "true"}
-        resp = requests.get(legacy_endpoint, params=params, timeout=10)
+        resp = requests.get(legacy_endpoint, params=params, headers=headers, timeout=15)
 
         logger.debug(
             "Legacy oEmbed response",
@@ -485,8 +591,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data",
-            extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
         )
 
     return None
@@ -646,7 +751,7 @@ def _lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, 
                 post_id = extract_post_id(url)
 
                 if post_id:
-                    instagram_data = fetch_instagram_data(url, post_id)
+                    instagram_data = fetch_instagram_data(url)
                     if instagram_data:
                         unfurl_data = format_unfurl_data(instagram_data)
                         if unfurl_data:
