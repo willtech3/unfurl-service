@@ -423,7 +423,11 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                             "response_size": (
                                 len(response.content) if response.content else 0
                             ),
-                            "requests_text_preview": response.text[:100] if hasattr(response, 'text') else "No text attribute",
+                            "requests_text_preview": (
+                                response.text[:100]
+                                if hasattr(response, "text")
+                                else "No text attribute"
+                            ),
                         },
                     )
 
@@ -432,35 +436,60 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                         logger.info(
                             "🔍 DEBUGGING: requests.text result",
                             extra={
-                                "content_length": len(content_text) if content_text else 0,
-                                "content_preview": content_text[:200] if content_text else "No content",
-                                "looks_like_html": "<html" in content_text.lower() if content_text else False,
-                                "has_instagram_meta": 'property="og:' in content_text if content_text else False,
-                            }
+                                "content_length": (
+                                    len(content_text) if content_text else 0
+                                ),
+                                "content_preview": (
+                                    content_text[:200] if content_text else "No content"
+                                ),
+                                "looks_like_html": (
+                                    "<html" in content_text.lower()
+                                    if content_text
+                                    else False
+                                ),
+                                "has_instagram_meta": (
+                                    'property="og:' in content_text
+                                    if content_text
+                                    else False
+                                ),
+                            },
                         )
-                        
-                        if content_text and len(content_text) > 100 and "<" in content_text:
-                            logger.info("✅ Requests handled brotli decompression automatically")
+
+                        if (
+                            content_text
+                            and len(content_text) > 100
+                            and "<" in content_text
+                        ):
+                            logger.info(
+                                "✅ Requests handled brotli decompression automatically"
+                            )
                         else:
                             logger.warning(
                                 "❌ Requests automatic decompression failed or produced invalid content",
                                 extra={
-                                    "content_length": len(content_text) if content_text else 0,
-                                    "content_sample": content_text[:100] if content_text else "None",
-                                }
+                                    "content_length": (
+                                        len(content_text) if content_text else 0
+                                    ),
+                                    "content_sample": (
+                                        content_text[:100] if content_text else "None"
+                                    ),
+                                },
                             )
                             # Manual brotli decompression as fallback
                             if BROTLI_AVAILABLE and response.content:
                                 logger.info("🔧 Attempting manual brotli decompression")
                                 try:
                                     decompressed = brotli.decompress(response.content)
-                                    content_text = decompressed.decode("utf-8", errors="replace")
+                                    content_text = decompressed.decode(
+                                        "utf-8", errors="replace"
+                                    )
                                     logger.info(
                                         "✅ Manual brotli decompression successful",
                                         extra={
                                             "decompressed_size": len(content_text),
                                             "content_preview": content_text[:200],
-                                            "looks_like_html": "<html" in content_text.lower(),
+                                            "looks_like_html": "<html"
+                                            in content_text.lower(),
                                         },
                                     )
                                 except Exception as brotli_e:
@@ -469,7 +498,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                         extra={
                                             "error": str(brotli_e),
                                             "error_type": type(brotli_e).__name__,
-                                        }
+                                        },
                                     )
                                     content_text = None
                             else:
@@ -478,14 +507,18 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                     extra={
                                         "brotli_available": BROTLI_AVAILABLE,
                                         "has_content": bool(response.content),
-                                    }
+                                    },
                                 )
                                 content_text = None
-                                
+
                             # If manual decompression failed, try decoding raw bytes as last resort
                             if not content_text and response.content:
-                                logger.warning("🚨 Last resort: attempting to decode raw compressed bytes")
-                                content_text = response.content.decode("utf-8", errors="replace")
+                                logger.warning(
+                                    "🚨 Last resort: attempting to decode raw compressed bytes"
+                                )
+                                content_text = response.content.decode(
+                                    "utf-8", errors="replace"
+                                )
                     except Exception as e:
                         logger.error(
                             "❌ All brotli decompression methods failed",
@@ -496,7 +529,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                             },
                         )
                         # Last resort: decode raw compressed bytes
-                        content_text = response.content.decode("utf-8", errors="replace")
+                        content_text = response.content.decode(
+                            "utf-8", errors="replace"
+                        )
                 elif content_encoding in ["gzip", "deflate"]:
                     # These should be handled automatically by requests
                     response.encoding = response.apparent_encoding or "utf-8"
