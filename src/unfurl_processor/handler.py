@@ -1,8 +1,8 @@
 import json
 import os
+import random
 import re
 import time
-import random
 from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -12,13 +12,13 @@ import requests
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from bs4 import BeautifulSoup
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 # Type imports for boto3
 from boto3.resources.base import ServiceResource
 from botocore.client import BaseClient
+from bs4 import BeautifulSoup
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
@@ -304,7 +304,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta", attrs={"name": n},
+                    "meta",
+                    attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -591,7 +592,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None
