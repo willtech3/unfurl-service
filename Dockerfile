@@ -9,7 +9,6 @@ RUN dnf update -y && \
     dnf install -y \
         wget \
         gnupg2 \
-        software-properties-common \
         ca-certificates \
         curl \
         brotli \
