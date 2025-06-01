@@ -38,8 +38,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
     python -m playwright install chromium
 
-# Install binutils for strip command (binary optimization)
-RUN dnf install -y binutils && dnf clean all
+# Install binutils and findutils for binary optimization
+RUN dnf install -y binutils findutils && dnf clean all
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \
