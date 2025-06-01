@@ -1,20 +1,17 @@
-# Fast deployment Dockerfile - uses pre-built base image with Playwright browsers
-# Build base once: docker build -f Dockerfile.base -t {ECR_URI}/unfurl-base:latest .
+# Fast deployment Dockerfile - optimized for CI compatibility
 ARG BASE_IMAGE_URI
 
-# Use pre-built base image
+# Use base image with fallback to public image
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
-# Use SHELL instruction to set shell for RUN commands, bypassing entrypoint
-SHELL ["/bin/sh", "-c"]
-
-# Copy requirements file and install dependencies
+# Copy pre-compiled requirements and install quickly
 COPY requirements-docker.txt /tmp/requirements-docker.txt
+
+# Simple pip install without platform complications
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
 
-# Restore Lambda runtime entrypoint and set handler
-ENTRYPOINT ["/lambda-entrypoint.sh"]
+# Set Lambda handler
 CMD ["unfurl_processor.entrypoint.lambda_handler"]
