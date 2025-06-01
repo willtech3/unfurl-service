@@ -190,7 +190,8 @@ async def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
         if result.success and result.data:
             logger.info(
-                f"✅ Successfully scraped {url} using {result.method} in {result.response_time_ms}ms"
+                f"✅ Successfully scraped {url} using {result.method} "
+                f"in {result.response_time_ms}ms"
             )
 
             # Add scraping metadata

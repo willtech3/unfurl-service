@@ -94,7 +94,10 @@ class SlackFormatter:
             "title_link": url,
             "text": description,
             "footer": "Instagram",
-            "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+            "footer_icon": (
+                "https://www.instagram.com/static/images/ico/"
+                "favicon-192.png/68d99ba29cc8.png"
+            ),
         }
 
         # Add video if available and supported
@@ -104,9 +107,11 @@ class SlackFormatter:
                 unfurl[
                     "video_html"
                 ] = f"""
-                <video controls width="400" height="400" poster="{image_url or ''}" preload="metadata">
+                <video controls width="400" height="400"
+                    poster="{image_url or ''}" preload="metadata">
                     <source src="{video_url}" type="video/mp4">
-                    <p>Your browser doesn't support HTML5 video. <a href="{video_url}">Download the video</a>.</p>
+                    <p>Your browser doesn't support HTML5 video.
+                    <a href="{video_url}">Download the video</a>.</p>
                 </video>
                 """
                 unfurl["video_html_width"] = 400
@@ -166,7 +171,10 @@ class SlackFormatter:
             "title_link": url,
             "text": description,
             "footer": "Instagram",
-            "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+            "footer_icon": (
+                "https://www.instagram.com/static/images/ico/"
+                "favicon-192.png/68d99ba29cc8.png"
+            ),
         }
 
         # Add image if available
@@ -189,7 +197,10 @@ class SlackFormatter:
             "title_link": url,
             "text": description,
             "footer": "Instagram",
-            "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+            "footer_icon": (
+                "https://www.instagram.com/static/images/ico/"
+                "favicon-192.png/68d99ba29cc8.png"
+            ),
         }
 
     def _is_slack_playable_video(self, video_url: str) -> bool:

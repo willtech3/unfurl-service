@@ -18,11 +18,27 @@ class HttpScraper(BaseScraper):
         self.proxy_urls = proxy_urls or []
         self.session = None
         self.user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 "
+                "Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) "
+                "Gecko/20100101 Firefox/121.0"
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) "
+                "Gecko/20100101 Firefox/121.0"
+            ),
         ]
 
     async def scrape(self, url: str) -> ScrapingResult:
@@ -47,9 +63,12 @@ class HttpScraper(BaseScraper):
             # Comprehensive browser-like headers
             headers = {
                 "User-Agent": user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                    "image/avif,image/webp,image/apng,*/*;q=0.8"
+                ),
                 "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate",  # Exclude 'br' to avoid brotli issues
+                "Accept-Encoding": "gzip, deflate",  # Exclude 'br' to avoid brotli
                 "DNT": "1",
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1",
@@ -58,7 +77,10 @@ class HttpScraper(BaseScraper):
                 "Sec-Fetch-Site": "none",
                 "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
-                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "sec-ch-ua": (
+                    '"Not_A Brand";v="8", "Chromium";v="120", '
+                    '"Google Chrome";v="120"'
+                ),
                 "sec-ch-ua-mobile": "?0",
                 "sec-ch-ua-platform": '"Windows"',
             }
@@ -197,7 +219,8 @@ class HttpScraper(BaseScraper):
         is_valid = has_html_structure or has_instagram_content
 
         self.logger.info(
-            f"Content validation - HTML structure: {has_html_structure}, Instagram content: {has_instagram_content}"
+            f"Content validation - HTML structure: {has_html_structure}, "
+            f"Instagram content: {has_instagram_content}"
         )
 
         return is_valid

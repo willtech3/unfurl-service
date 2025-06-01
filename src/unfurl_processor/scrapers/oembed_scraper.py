@@ -46,7 +46,10 @@ class OEmbedScraper(BaseScraper):
             # Create session with enhanced headers
             session = requests.Session()
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                ),
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate",
@@ -59,7 +62,10 @@ class OEmbedScraper(BaseScraper):
             session.headers.update(headers)
 
             # Make request to Graph API oEmbed
-            oembed_url = f"{self.graph_api_endpoint}?url={quote(url)}&access_token=instagram_basic_display"
+            oembed_url = (
+                f"{self.graph_api_endpoint}?url={quote(url)}"
+                f"&access_token=instagram_basic_display"
+            )
 
             response = session.get(oembed_url, timeout=10)
 
@@ -102,7 +108,10 @@ class OEmbedScraper(BaseScraper):
             # Create session with enhanced headers
             session = requests.Session()
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                ),
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate",

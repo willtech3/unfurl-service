@@ -42,10 +42,24 @@ class PlaywrightScraper(BaseScraper):
         ]
 
         self.mobile_user_agents = [
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-            "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-            "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            (
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+                "Mobile/15E148 Safari/604.1"
+            ),
+            (
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 "
+                "Mobile/15E148 Safari/604.1"
+            ),
+            (
+                "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            ),
+            (
+                "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            ),
         ]
 
     async def initialize(self) -> bool:
@@ -101,7 +115,7 @@ class PlaywrightScraper(BaseScraper):
                         "--disable-extensions",
                         "--disable-plugins",
                         "--disable-images",  # Speed optimization
-                        "--disable-javascript",  # Instagram works without JS for meta tags
+                        "--disable-javascript",  # Instagram works without JS
                     ],
                 }
 
@@ -121,7 +135,10 @@ class PlaywrightScraper(BaseScraper):
                     timezone_id="America/New_York",
                     permissions=["geolocation"],
                     extra_http_headers={
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                        "Accept": (
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                            "image/webp,*/*;q=0.8"
+                        ),
                         "Accept-Language": "en-US,en;q=0.5",
                         "Accept-Encoding": "gzip, deflate",
                         "DNT": "1",
@@ -194,7 +211,7 @@ class PlaywrightScraper(BaseScraper):
             # Wait for content to load with timeout
             try:
                 await page.wait_for_selector('meta[property="og:title"]', timeout=5000)
-            except:
+            except asyncio.TimeoutError:
                 # Continue even if specific selector not found
                 pass
 
@@ -249,7 +266,7 @@ class PlaywrightScraper(BaseScraper):
             if page:
                 try:
                     await page.close()
-                except:
+                except Exception:
                     pass
 
     def _extract_enhanced_data(

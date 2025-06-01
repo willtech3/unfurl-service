@@ -1,4 +1,5 @@
-"""Enhanced scraper manager with async support and intelligent fallback orchestration."""
+"""Enhanced scraper manager with async support and intelligent fallback
+orchestration."""
 
 import asyncio
 import os
@@ -89,11 +90,10 @@ class ScraperManager:
 
                 if result.success and result.data:
                     total_time = self.measure_time(start_time)
-                    self.logger.info(
-                        f"✅ Success with {scraper.name} (attempt {i}/{len(self.scrapers)}) "
-                        f"in {result.response_time_ms}ms (total: {total_time}ms)"
-                    )
-
+                    scraper_success_msg = f"✅ Success with {scraper.name}"
+                    attempt_msg = f"(attempt {i}/{len(self.scrapers)})"
+                    time_msg = f"in {result.response_time_ms}ms (total: {total_time}ms)"
+                    self.logger.info(f"{scraper_success_msg} {attempt_msg} {time_msg}")
                     # Add manager metadata
                     result.data["scraper_attempts"] = i
                     result.data["total_response_time_ms"] = total_time
@@ -152,7 +152,8 @@ class ScraperManager:
             return []
 
         self.logger.info(
-            f"🔗 Scraping {len(urls)} URLs with max {max_concurrent} concurrent operations"
+            f"🔗 Scraping {len(urls)} URLs with max {max_concurrent} "
+            f"concurrent operations"
         )
 
         # Create semaphore to limit concurrency
