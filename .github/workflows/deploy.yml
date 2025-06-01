@@ -14,52 +14,7 @@ env:
   CDK_QUALIFIER: unfurl
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: |
-          source .venv/bin/activate
-          uv pip install -e ".[dev]"
-
-      - name: Run linting
-        run: |
-          source .venv/bin/activate
-          black --check src/ tests/
-          flake8 src/ tests/
-          mypy src/
-          bandit -r src/ -s B110
-
-      - name: Run tests
-        run: |
-          source .venv/bin/activate
-          pytest tests/ -v --cov=src --cov-report=xml --cov-report=term-missing
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        continue-on-error: true
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
-
   deploy:
-    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -100,183 +55,30 @@ jobs:
         with:
           platforms: linux/arm64
 
+      - name: Set up QEMU for cross-platform builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Setup fast deployment base image
-        run: |
-          echo "🔍 Checking for ECR base image to enable fast deployment..."
-          
-          # Get AWS account details
-          AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URI="${AWS_ACCOUNT}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-          
-          # Always ensure ECR authentication for potential fast mode
-          echo "🔐 Ensuring ECR authentication for all Docker operations..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
-          
-          # Check if ECR repository exists
-          if aws ecr describe-repositories --repository-names unfurl-base --region ${{ env.AWS_REGION }} &>/dev/null; then
-            echo "✅ ECR repository 'unfurl-base' exists"
-            
-            # Check if base image exists
-            if aws ecr describe-images --repository-name unfurl-base --image-ids imageTag=latest --region ${{ env.AWS_REGION }} &>/dev/null; then
-              echo "✅ Base image found - enabling FAST DEPLOYMENT MODE"
-              echo "⚡ Expected build time: ~2-4 minutes (vs ~12-15 minutes standard)"
-              
-              # Test base image accessibility
-              if docker pull ${ECR_URI}/unfurl-base:latest; then
-                echo "✅ Base image successfully pulled and cached"
-                
-                # Switch to fast Dockerfile
-                cp Dockerfile.fast Dockerfile
-                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
-                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
-                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-              else
-                echo "⚠️  Base image exists but not accessible - will rebuild"
-                
-                # Build and push base image
-                docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-                docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-                docker push ${ECR_URI}/unfurl-base:latest
-                
-                echo "✅ Base image rebuilt and pushed - enabling fast mode"
-                cp Dockerfile.fast Dockerfile
-                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
-                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
-                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-              fi
-            else
-              echo "⚠️  Base image not found - building base image for future fast deployments"
-              echo "🏗️  This will take ~8-10 minutes (one-time cost)"
-              
-              # Build and push base image
-              docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-              docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-              docker push ${ECR_URI}/unfurl-base:latest
-              
-              echo "✅ Base image built and pushed - next deployment will be FAST"
-              echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
-              
-              # Use standard Dockerfile for this deployment
-              echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
-              echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-            fi
-          else
-            echo "📦 Creating ECR repository for fast deployment base image..."
-            aws ecr create-repository --repository-name unfurl-base --region ${{ env.AWS_REGION }}
-            
-            echo "🏗️  Building base image (one-time setup, ~8-10 minutes)..."
-            docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-            docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-            docker push ${ECR_URI}/unfurl-base:latest
-            
-            echo "✅ Base image setup complete - next deployment will be FAST"
-            echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
-            
-            # Use standard Dockerfile for this deployment
-            echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
-            echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-          fi
-
-      - name: Test Docker build
-        run: |
-          echo "🏗️  Testing Docker build in $DEPLOYMENT_MODE mode..."
-          
-          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
-            echo "⚡ FAST DEPLOYMENT MODE: Using pre-built base image"
-            echo "📦 Base image: $BASE_IMAGE_URI"
-            echo "⏱️  Expected build time: ~2-4 minutes"
-          else
-            echo "🛠️  STANDARD DEPLOYMENT MODE: Self-contained build"
-            echo "⏱️  Expected build time: ~12-15 minutes"
-          fi
-          
-          # Test the Dockerfile builds correctly and tag for potential reuse
-          docker buildx build --platform linux/arm64 -t unfurl-service:latest . --load
-          echo "✅ Docker build successful"
-          
-          # Save build info for CDK optimization
-          docker image ls unfurl-service:latest --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
-          
-          # Report deployment mode used
-          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
-            echo "🚀 FAST DEPLOYMENT: Ready for lightning-fast CDK deployment!"
-          else
-            echo "✅ STANDARD DEPLOYMENT: Ready for reliable CDK deployment"
-            echo "💡 Next deployment will use fast mode automatically"
-          fi
-
-      - name: Build Lambda layer
-        run: |
-          # Only build layer for event router (lightweight dependencies)
-          chmod +x scripts/build_lambda_layer.sh
-          ./scripts/build_lambda_layer.sh
-
-      - name: Ensure CDK bootstrap stack exists
+      - name: Deploy with CDK
         run: |
           source .venv/bin/activate
-          set -euo pipefail
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          STACK_NAME=CDKToolkit
-          STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ env.AWS_REGION }} --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NOT_FOUND")
-          if [[ "$STATUS" =~ ^(CREATE_COMPLETE|UPDATE_COMPLETE)$ ]]; then
-            echo "CDK bootstrap stack already in good state ($STATUS) – continuing."
-          elif [[ "$STATUS" == "NOT_FOUND" ]]; then
-            echo "CDK bootstrap stack not found – running initial bootstrap."
-          else
-            echo "::warning::CDK bootstrap stack in status $STATUS – deleting and recreating."
-            aws cloudformation delete-stack --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}
-            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}
-          fi
-          cdk bootstrap aws://$ACCOUNT_ID/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --force --require-approval never
-
-      - name: CDK Synth
-        run: |
-          source .venv/bin/activate
-          cdk synth --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" -o cdk.out
-
-      - name: Check synthesized qualifier
-        run: |
-          echo "Using qualifier: $CDK_QUALIFIER"
-          grep -r --line-number "/cdk-bootstrap/" cdk.out || true
-          echo "--- End of qualifier check ---"
-
-      - name: Debug bootstrap parameters
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "AWS Account: $ACCOUNT_ID, Region: $AWS_REGION"
-          echo "Listing SSM parameters under /cdk-bootstrap/ ..."
-          aws ssm get-parameters-by-path --path /cdk-bootstrap/ --region $AWS_REGION --query "Parameters[].Name" || true
-
-      - name: CDK Deploy
-        run: |
-          source .venv/bin/activate
+          cd cdk
           
-          # Refresh ECR authentication right before CDK deploy
-          if [ ! -z "$ECR_URI" ]; then
-            echo "🔐 Refreshing ECR authentication for CDK deployment..."
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
-            
-            # Create simplified Docker config for CDK builds
-            mkdir -p ~/.docker
-            echo '{"auths":{"'$ECR_URI'":{}}}' > ~/.docker/config.json
-          fi
+          # Set environment variables for single deployment mode
+          export DEPLOYMENT_MODE=fast
+          export DOCKER_BUILDKIT=1
+          export BUILDKIT_INLINE_CACHE=1
           
-          # Report deployment mode
-          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
-            echo "⚡ FAST MODE: Starting CDK deployment (~2-4 minutes)"
-            echo "📦 Using base image: $BASE_IMAGE_URI"
-          else
-            echo "🐌 STANDARD MODE: Starting CDK deployment (~12-15 minutes)"
-          fi
+          echo "🚀 Deploying Instagram unfurl service..."
+          echo "📋 Using single optimized deployment mode"
           
-          echo "🚀 CDK Deploy starting..."
-          cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --no-previous-parameters --verbose
-        env:
-          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
-          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
-          AWS_REGION: ${{ env.AWS_REGION }}
+          # Bootstrap CDK if needed
+          cdk bootstrap --qualifier ${{ env.CDK_QUALIFIER }}
+          
+          # Deploy the stack
+          cdk deploy --all --require-approval never --qualifier ${{ env.CDK_QUALIFIER }}

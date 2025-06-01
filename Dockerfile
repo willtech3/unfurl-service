@@ -1,24 +1,42 @@
-# Multi-stage Docker build for high-performance Lambda with Playwright
-# Optimized for fast cold starts and ARM64 performance
+# Single optimized Dockerfile for Instagram unfurl service
+# Designed for cross-platform builds with ARM64 Lambda
 
-# Stage 1: Playwright browser installation
-FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
+FROM public.ecr.aws/lambda/python:3.12-arm64
 
-# Install minimal system dependencies with better error handling
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV DOCKER_BUILDKIT=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
+
+# Install system dependencies needed for Playwright
 RUN dnf update -y && \
-    dnf install -y wget ca-certificates findutils && \
+    dnf install -y \
+        wget \
+        ca-certificates \
+        findutils \
+        binutils \
+        nss \
+        atk \
+        gtk3 \
+        libdrm \
+        libXcomposite \
+        libXdamage \
+        libXrandr \
+        mesa-libgbm \
+        alsa-lib && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
-# Install core Python dependencies first (layer caching optimization)
-COPY requirements-docker.txt /tmp/
+# Copy requirements and install Python dependencies
+COPY requirements-docker.txt /tmp/requirements-docker.txt
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
-# Install Playwright and browser binaries
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 playwright-stealth==1.0.6
+# Install Playwright and browser
+RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
+    playwright==1.45.0 \
+    playwright-stealth==1.0.6
 
-# Install Playwright browsers with optimizations (cache-bust v4)
-ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
+# Install Playwright browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
     python -m playwright install chromium
 
@@ -27,16 +45,8 @@ RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null 
     find ${LAMBDA_TASK_ROOT} -type f -name "chrome*" -exec chmod +x {} \; && \
     find ${LAMBDA_TASK_ROOT} -type f -name "chromium*" -exec chmod +x {} \;
 
-# Stage 2: Application layer with remaining dependencies
-FROM public.ecr.aws/lambda/python:3.12-arm64 AS final
-
-# Copy Playwright and core dependencies from previous stage
-COPY --from=playwright-base ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
-
-# No remaining dependencies to install
-
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
 
-# Set the Lambda handler
+# Set Lambda handler
 CMD ["unfurl_processor.entrypoint.lambda_handler"]
