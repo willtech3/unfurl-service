@@ -284,39 +284,54 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
 
 
 def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
-    """Fetch Instagram data using oEmbed API as fallback."""
-    try:
-        oembed_url = "https://graph.facebook.com/v18.0/instagram_oembed"
-        params = {
-            "url": url,
-            "access_token": (
-                f"{os.environ.get('FACEBOOK_APP_ID', '')}"
-                f"|{os.environ.get('FACEBOOK_APP_SECRET', '')}"
-            ),
-            "omitscript": "true",
+    """Fetch Instagram data using oEmbed endpoints (Graph API with token or legacy)."""
+    graph_endpoint = "https://graph.facebook.com/v18.0/instagram_oembed"
+    legacy_endpoint = "https://www.instagram.com/oembed/"
+
+    app_id = os.getenv("FACEBOOK_APP_ID")
+    app_secret = os.getenv("FACEBOOK_APP_SECRET")
+
+    def _convert_oembed(oembed_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert oEmbed payload into the internal data structure expected by the service."""
+        return {
+            "id": extract_post_id(url),
+            "permalink": url,
+            "media_url": oembed_data.get("thumbnail_url")
+            or oembed_data.get("thumbnail_url_with_play_button"),
+            "media_type": "IMAGE",
+            "username": oembed_data.get("author_name", "Instagram User"),
+            "caption": oembed_data.get("title", ""),
+            "timestamp": datetime.utcnow().isoformat(),
+            "provider": "oembed",
         }
 
-        response = requests.get(oembed_url, params=params, timeout=10)
-
-        # If no Facebook app credentials, try without access token
-        if response.status_code == 400:
-            params.pop("access_token", None)
-            response = requests.get(oembed_url, params=params, timeout=10)
-
-        if response.status_code == 200:
-            oembed_data = response.json()
-
-            # Convert oEmbed data to our format
-            return {
-                "id": extract_post_id(url),
-                "permalink": url,
-                "media_url": oembed_data.get("thumbnail_url"),
-                "media_type": "IMAGE",
-                "username": oembed_data.get("author_name", "Instagram User"),
-                "caption": oembed_data.get("title", ""),
-                "timestamp": datetime.utcnow().isoformat(),
-                "provider": "oembed",
+    try:
+        # 1️⃣ Attempt Graph endpoint which requires app credentials
+        if app_id and app_secret:
+            params = {
+                "url": url,
+                "access_token": f"{app_id}|{app_secret}",
+                "omitscript": "true",
             }
+            resp = requests.get(graph_endpoint, params=params, timeout=10)
+            if resp.status_code == 200:
+                return _convert_oembed(resp.json())
+            logger.debug(
+                "Graph oEmbed request failed, falling back to legacy endpoint",
+                extra={"status_code": resp.status_code, "url": url},
+            )
+
+        # 2️⃣ Legacy endpoint does not need credentials and still works for public posts
+        params = {"url": url, "omitscript": "true"}
+        resp = requests.get(legacy_endpoint, params=params, timeout=10)
+        if resp.status_code == 200:
+            return _convert_oembed(resp.json())
+
+        logger.warning(
+            "Both oEmbed attempts failed",
+            extra={"status_code": resp.status_code, "url": url},
+        )
+
     except Exception as e:
         logger.error("Error fetching oEmbed data", extra={"error": str(e)})
 
