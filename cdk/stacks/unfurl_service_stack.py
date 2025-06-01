@@ -2,11 +2,12 @@ from aws_cdk import (
     Stack,
     Duration,
     RemovalPolicy,
+    BundlingOptions,
     aws_lambda as lambda_,
-    aws_apigateway as apigw,
     aws_dynamodb as dynamodb,
     aws_sns as sns,
     aws_sns_subscriptions as sns_subs,
+    aws_apigateway as apigw,
     aws_logs as logs,
     aws_secretsmanager as sm,
     aws_sqs as sqs,
@@ -32,11 +33,7 @@ class UnfurlServiceStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
-            point_in_time_recovery_specification=(
-                dynamodb.PointInTimeRecoverySpecification(
-                    point_in_time_recovery_enabled=True
-                )
-            ),
+            point_in_time_recovery=True,
         )
 
         # SNS topic for async processing
@@ -52,14 +49,28 @@ class UnfurlServiceStack(Stack):
             self, "SlackSecret", "unfurl-service/slack"
         )
 
-        # Lambda layer for shared dependencies
+        # Lambda layer for shared dependencies including Playwright binaries
         deps_layer = lambda_.LayerVersion(
             self,
             "DepsLayer",
-            code=lambda_.Code.from_asset("lambda_layers/deps"),
+            code=lambda_.Code.from_asset(
+                ".",
+                bundling=BundlingOptions(
+                    image=lambda_.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash", "-c",
+                        " && ".join([
+                            "pip install -r requirements.txt -t /asset-output/python/",
+                            "find /asset-output -type f -name '*.pyc' -delete",
+                            "find /asset-output -type f -name '__pycache__' -exec rm -rf {} +",
+                            "find /asset-output -type f -name '*.so' -exec strip {} +"
+                        ])
+                    ],
+                ),
+            ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             compatible_architectures=[lambda_.Architecture.ARM_64],
-            description="Shared dependencies for unfurl service",
+            description="Shared dependencies including Playwright for unfurl service",
         )
 
         # Event router Lambda function
@@ -100,7 +111,7 @@ class UnfurlServiceStack(Stack):
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
-                "CACHE_TTL_HOURS": "24",
+                "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "INFO",
             },
             timeout=Duration.seconds(30),
@@ -124,10 +135,7 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(
-                unfurl_processor,
-                dead_letter_queue=dlq,
-            )
+            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
         )
 
         # API Gateway for Slack events
@@ -168,8 +176,7 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200",
-                        response_templates={"application/json": ""},
+                        status_code="200", response_templates={"application/json": ""},
                     )
                 ],
             ),
