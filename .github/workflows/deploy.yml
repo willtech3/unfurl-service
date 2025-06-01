@@ -106,80 +106,87 @@ jobs:
 
       - name: Setup fast deployment base image
         run: |
-          echo "🔍 Checking for ECR base image to enable fast deployment..."
+          echo "🔍 TEMPORARILY DISABLED: Fast deployment mode disabled for debugging"
+          echo "📝 Using standard deployment mode until Docker build issues are resolved"
+          echo "DEPLOYMENT_MODE=standard" >> $GITHUB_ENV
           
-          # Get AWS account details
-          AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URI="${AWS_ACCOUNT}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          # TODO: Re-enable fast mode after fixing Docker build issues
+          # Original logic commented out to ensure stable deployments
           
-          # Always ensure ECR authentication for potential fast mode
-          echo "🔐 Ensuring ECR authentication for all Docker operations..."
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
-          
-          # Check if ECR repository exists
-          if aws ecr describe-repositories --repository-names unfurl-base --region ${{ env.AWS_REGION }} &>/dev/null; then
-            echo "✅ ECR repository 'unfurl-base' exists"
-            
-            # Check if base image exists
-            if aws ecr describe-images --repository-name unfurl-base --image-ids imageTag=latest --region ${{ env.AWS_REGION }} &>/dev/null; then
-              echo "✅ Base image found - enabling FAST DEPLOYMENT MODE"
-              echo "⚡ Expected build time: ~2-4 minutes (vs ~12-15 minutes standard)"
-              
-              # Test base image accessibility
-              if docker pull ${ECR_URI}/unfurl-base:latest; then
-                echo "✅ Base image successfully pulled and cached"
-                
-                # Switch to fast Dockerfile
-                cp Dockerfile.fast Dockerfile
-                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
-                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
-                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-              else
-                echo "⚠️  Base image exists but not accessible - will rebuild"
-                
-                # Build and push base image
-                docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-                docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-                docker push ${ECR_URI}/unfurl-base:latest
-                
-                echo "✅ Base image rebuilt and pushed - enabling fast mode"
-                cp Dockerfile.fast Dockerfile
-                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
-                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
-                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-              fi
-            else
-              echo "⚠️  Base image not found - building base image for future fast deployments"
-              echo "🏗️  This will take ~8-10 minutes (one-time cost)"
-              
-              # Build and push base image
-              docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-              docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-              docker push ${ECR_URI}/unfurl-base:latest
-              
-              echo "✅ Base image built and pushed - next deployment will be FAST"
-              echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
-              
-              # Use standard Dockerfile for this deployment
-              echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
-              echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-            fi
-          else
-            echo "📦 Creating ECR repository for fast deployment base image..."
-            aws ecr create-repository --repository-name unfurl-base --region ${{ env.AWS_REGION }}
-            
-            echo "🏗️  Building base image (one-time setup, ~8-10 minutes)..."
-            docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
-            docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
-            docker push ${ECR_URI}/unfurl-base:latest
-            
-            echo "✅ Base image setup complete - next deployment will be FAST"
-            echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
-            
-            # Use standard Dockerfile for this deployment
-            echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
-            echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
-          fi
+          # echo "🔍 Checking for ECR base image to enable fast deployment..."
+          # 
+          # # Get AWS account details
+          # AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          # ECR_URI="${AWS_ACCOUNT}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          # 
+          # # Always ensure ECR authentication for potential fast mode
+          # echo "🔐 Ensuring ECR authentication for all Docker operations..."
+          # aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
+          # 
+          # # Check if ECR repository exists
+          # if aws ecr describe-repositories --repository-names unfurl-base --region ${{ env.AWS_REGION }} &>/dev/null; then
+          #   echo "✅ ECR repository 'unfurl-base' exists"
+          #   
+          #   # Check if base image exists
+          #   if aws ecr describe-images --repository-name unfurl-base --image-ids imageTag=latest --region ${{ env.AWS_REGION }} &>/dev/null; then
+          #     echo "✅ Base image found - enabling FAST DEPLOYMENT MODE"
+          #     echo "⚡ Expected build time: ~2-4 minutes (vs ~12-15 minutes standard)"
+          #     
+          #     # Test base image accessibility
+          #     if docker pull ${ECR_URI}/unfurl-base:latest; then
+          #       echo "✅ Base image successfully pulled and cached"
+          #       
+          #       # Switch to fast Dockerfile
+          #       cp Dockerfile.fast Dockerfile
+          #       echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
+          #       echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+          #       echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+          #     else
+          #       echo "⚠️  Base image exists but not accessible - will rebuild"
+          #       
+          #       # Build and push base image
+          #       docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+          #       docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+          #       docker push ${ECR_URI}/unfurl-base:latest
+          #       
+          #       echo "✅ Base image rebuilt and pushed - enabling fast mode"
+          #       cp Dockerfile.fast Dockerfile
+          #       echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
+          #       echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+          #       echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+          #     fi
+          #   else
+          #     echo "⚠️  Base image not found - building base image for future fast deployments"
+          #     echo "🏗️  This will take ~8-10 minutes (one-time cost)"
+          #     
+          #     # Build and push base image
+          #     docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+          #     docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+          #     docker push ${ECR_URI}/unfurl-base:latest
+          #     
+          #     echo "✅ Base image built and pushed - next deployment will be FAST"
+          #     echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
+          #     
+          #     # Use standard Dockerfile for this deployment
+          #     echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+          #     echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+          #   fi
+          # else
+          #   echo "📦 Creating ECR repository for fast deployment base image..."
+          #   aws ecr create-repository --repository-name unfurl-base --region ${{ env.AWS_REGION }}
+          #   
+          #   echo "🏗️  Building base image (one-time setup, ~8-10 minutes)..."
+          #   docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+          #   docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+          #   docker push ${ECR_URI}/unfurl-base:latest
+          #   
+          #   echo "✅ Base image setup complete - next deployment will be FAST"
+          #   echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
+          #   
+          #   # Use standard Dockerfile for this deployment
+          #   echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+          #   echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+          # fi
 
       - name: Test Docker build
         run: |
