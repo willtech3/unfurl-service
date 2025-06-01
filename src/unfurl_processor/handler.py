@@ -19,8 +19,9 @@ from typing import cast
 from boto3.resources.base import ServiceResource
 from botocore.client import BaseClient
 
-# Initialize Powertools
-logger = Logger()
+# Initialize Powertools logger with a service name for better observability.
+# Default to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not explicitly set.
+logger = Logger(service=os.getenv("POWERTOOLS_SERVICE_NAME", "UnfurlService"))
 tracer = Tracer()
 
 # Initialize metrics conditionally
@@ -159,6 +160,16 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         }
 
         response = requests.get(url, headers=headers, timeout=10)
+        # Log response status upfront to help with troubleshooting latency or throttling issues
+        logger.debug(
+            "Fetched Instagram page",
+            extra={
+                "status_code": response.status_code,
+                "url": url,
+                "content_length": len(response.text),
+            },
+        )
+
         response.raise_for_status()
 
         # Parse the HTML
@@ -316,26 +327,73 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                 "omitscript": "true",
             }
             resp = requests.get(graph_endpoint, params=params, timeout=10)
-            if resp.status_code == 200:
-                return _convert_oembed(resp.json())
             logger.debug(
-                ("Graph oEmbed request failed, " "falling back to legacy endpoint"),
-                extra={"status_code": resp.status_code, "url": url},
+                "Graph oEmbed response",
+                extra={
+                    "status_code": resp.status_code,
+                    "url": url,
+                    "response_snippet": resp.text[:200],
+                },
             )
+
+            if resp.status_code == 200:
+                try:
+                    return _convert_oembed(resp.json())
+                except ValueError as json_err:  # JSONDecodeError inherits ValueError
+                    logger.error(
+                        "Failed to parse Graph oEmbed JSON",
+                        extra={
+                            "url": url,
+                            "error": str(json_err),
+                            "response_snippet": resp.text[:200],
+                        },
+                    )
+            else:
+                logger.warning(
+                    "Graph oEmbed request failed, falling back to legacy endpoint",
+                    extra={"status_code": resp.status_code, "url": url},
+                )
 
         # 2️⃣ Legacy endpoint does not need credentials and still works for public posts
         params = {"url": url, "omitscript": "true"}
         resp = requests.get(legacy_endpoint, params=params, timeout=10)
+
+        logger.debug(
+            "Legacy oEmbed response",
+            extra={
+                "status_code": resp.status_code,
+                "url": url,
+                "response_snippet": resp.text[:200],
+            },
+        )
+
         if resp.status_code == 200:
-            return _convert_oembed(resp.json())
+            try:
+                return _convert_oembed(resp.json())
+            except ValueError as json_err:
+                logger.error(
+                    "Failed to parse legacy oEmbed JSON",
+                    extra={
+                        "url": url,
+                        "error": str(json_err),
+                        "response_snippet": resp.text[:200],
+                    },
+                )
 
         logger.warning(
             "Both oEmbed attempts failed",
-            extra={"status_code": resp.status_code, "url": url},
+            extra={
+                "status_code": resp.status_code,
+                "url": url,
+                "response_snippet": resp.text[:200],
+            },
         )
 
     except Exception as e:
-        logger.error("Error fetching oEmbed data", extra={"error": str(e)})
+        logger.error(
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
+        )
 
     return None
 
