@@ -396,9 +396,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     extra={
                         "content_encoding": content_encoding,
                         "content_type": content_type,
-                        "response_size": len(response.content)
-                        if response.content
-                        else 0,
+                        "response_size": (
+                            len(response.content) if response.content else 0
+                        ),
                         "apparent_encoding": response.apparent_encoding,
                     },
                 )
@@ -450,7 +450,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     logger.warning("Received null-prefixed content, likely binary")
                     return None
 
-                # Check for excessive unicode replacement characters (indicates corruption)
+                # Check for excessive unicode replacement characters
+                # (indicates corruption)
                 replacement_char_ratio = (
                     content_text.count("\ufffd") / len(content_text)
                     if content_text
@@ -491,7 +492,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     indicator in content_text for indicator in instagram_indicators
                 )
 
-                # Be more lenient - accept if either HTML structure OR Instagram content detected
+                # Be more lenient - accept if either HTML structure OR
+                # Instagram content detected
                 if (
                     not has_html_structure
                     and not has_instagram_content
@@ -574,9 +576,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                 soup.find_all("script", type="application/ld+json")
                             ),
                             "all_meta_tags": all_meta_tags[:10],  # Limit for logging
-                            "page_title": soup.title.string
-                            if soup.title
-                            else "No title",
+                            "page_title": (
+                                soup.title.string if soup.title else "No title"
+                            ),
                         },
                     )
 
@@ -617,7 +619,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL",
+            extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -807,7 +810,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None
@@ -821,7 +825,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta", attrs={"name": n},
+                    "meta",
+                    attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
