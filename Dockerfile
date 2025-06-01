@@ -35,8 +35,7 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 p
 # Install Playwright browsers with optimizations
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
-    python -m playwright install chromium && \
-    python -m playwright install-deps chromium
+    python -m playwright install chromium
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \
