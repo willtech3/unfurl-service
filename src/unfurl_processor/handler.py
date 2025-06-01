@@ -553,7 +553,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                     extra={"status_code": resp.status_code, "url": url},
                 )
 
-        # 2️⃣ Legacy endpoint does not need credentials and still works for public posts
+        # 2️⃣ Legacy endpoint does not need credentials and works for public posts
         params = {"url": url, "omitscript": "true"}
 
         # Add another delay
