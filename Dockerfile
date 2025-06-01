@@ -8,17 +8,19 @@ FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
 RUN dnf update -y && \
     dnf install -y \
         wget \
-        gnupg2 \
         ca-certificates \
-        curl \
-        brotli \
-        xvfb \
-        dbus-glib \
-        at-spi2-atk \
+        xorg-x11-server-Xvfb \
         nss \
-        alsa-lib \
+        atk \
+        at-spi2-atk \
         gtk3 \
-        mesa-libgbm && \
+        libdrm \
+        libXcomposite \
+        libXdamage \
+        libXrandr \
+        mesa-libgbm \
+        libXss \
+        alsa-lib && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
