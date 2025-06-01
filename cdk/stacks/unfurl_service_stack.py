@@ -109,7 +109,7 @@ class UnfurlServiceStack(Stack):
         unfurl_processor = lambda_.Function(
             self,
             "UnfurlProcessor",
-            function_name=f"unfurl-processor-{env_name}",
+            function_name=f"unfurl-processor-{env_name}-v2",
             runtime=lambda_.Runtime.FROM_IMAGE,
             architecture=lambda_.Architecture.ARM_64,
             handler=lambda_.Handler.FROM_IMAGE,
