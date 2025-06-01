@@ -3,6 +3,7 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     BundlingOptions,
+    DockerImage,
     aws_lambda as lambda_,
     aws_dynamodb as dynamodb,
     aws_sns as sns,
@@ -11,6 +12,7 @@ from aws_cdk import (
     aws_logs as logs,
     aws_secretsmanager as sm,
     aws_sqs as sqs,
+    aws_ecr_assets as ecr_assets,
 )
 from constructs import Construct
 
@@ -49,7 +51,19 @@ class UnfurlServiceStack(Stack):
             self, "SlackSecret", "unfurl-service/slack"
         )
 
-        # Lambda layer for shared dependencies including Playwright binaries
+        # Docker image for the unfurl processor with Playwright
+        unfurl_image = ecr_assets.DockerImageAsset(
+            self,
+            "UnfurlProcessorImage",
+            directory=".",  # Root directory with Dockerfile
+            platform=ecr_assets.Platform.LINUX_ARM64,
+            build_args={
+                "BUILDPLATFORM": "linux/arm64",
+                "TARGETPLATFORM": "linux/arm64",
+            },
+        )
+
+        # Lambda layer for shared dependencies (only for event router)
         deps_layer = lambda_.LayerVersion(
             self,
             "DepsLayer",
@@ -58,19 +72,22 @@ class UnfurlServiceStack(Stack):
                 bundling=BundlingOptions(
                     image=lambda_.Runtime.PYTHON_3_12.bundling_image,
                     command=[
-                        "bash", "-c",
-                        " && ".join([
-                            "pip install -r requirements.txt -t /asset-output/python/",
-                            "find /asset-output -type f -name '*.pyc' -delete",
-                            "find /asset-output -type f -name '__pycache__' -exec rm -rf {} +",
-                            "find /asset-output -type f -name '*.so' -exec strip {} +"
-                        ])
+                        "bash",
+                        "-c",
+                        " && ".join(
+                            [
+                                "pip install slack-sdk boto3 aws-lambda-powertools -t /asset-output/python/",
+                                "find /asset-output -type f -name '*.pyc' -delete",
+                                "find /asset-output -type f -name '__pycache__' -exec rm -rf {} +",
+                                "find /asset-output -type f -name '*.so' -exec strip {} +",
+                            ]
+                        ),
                     ],
                 ),
             ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             compatible_architectures=[lambda_.Architecture.ARM_64],
-            description="Shared dependencies including Playwright for unfurl service",
+            description="Lightweight dependencies for event router",
         )
 
         # Event router Lambda function
@@ -99,25 +116,27 @@ class UnfurlServiceStack(Stack):
         slack_secret.grant_read(event_router)
         unfurl_topic.grant_publish(event_router)
 
-        # Unfurl processor Lambda function
+        # Unfurl processor Lambda function (container-based)
         unfurl_processor = lambda_.Function(
             self,
             "UnfurlProcessor",
             function_name=f"unfurl-processor-{env_name}",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            handler="handler.lambda_handler",
-            code=lambda_.Code.from_asset("src/unfurl_processor"),
+            handler="handler_new.lambda_handler",
+            code=lambda_.Code.from_docker_image(unfurl_image),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "INFO",
+                "POWERTOOLS_METRICS_NAMESPACE": f"UnfurlService/{env_name}",
+                "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
+                "PLAYWRIGHT_BROWSERS_PATH": "/tmp/ms-playwright",
             },
-            timeout=Duration.seconds(30),
-            memory_size=512,
-            reserved_concurrent_executions=20,
-            layers=[deps_layer],
+            timeout=Duration.minutes(5),  # Increased for Playwright browser startup
+            memory_size=1024,  # Increased for browser automation
+            reserved_concurrent_executions=10,  # Reduced due to higher memory usage
             log_retention=logs.RetentionDays.ONE_WEEK,
             tracing=lambda_.Tracing.ACTIVE,
         )
@@ -135,7 +154,10 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
+            sns_subs.LambdaSubscription(
+                unfurl_processor,
+                dead_letter_queue=dlq,
+            )
         )
 
         # API Gateway for Slack events
@@ -176,7 +198,8 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200", response_templates={"application/json": ""},
+                        status_code="200",
+                        response_templates={"application/json": ""},
                     )
                 ],
             ),
