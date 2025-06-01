@@ -216,10 +216,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) "
                 "Version/17.0 Mobile/15E148 Safari/604.1"
             ),
-            (
-                "Mozilla/5.0 (Android 14; Mobile; rv:120.0) "
-                "Gecko/120.0 Firefox/120.0"
-            ),
+            ("Mozilla/5.0 (Android 14; Mobile; rv:120.0) " "Gecko/120.0 Firefox/120.0"),
             (
                 "Mozilla/5.0 (Linux; Android 14; SM-G991B) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -325,7 +322,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                         time.sleep(random.uniform(5.0, 10.0))
                         continue
                 elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
-                    logger.warning(f"Bot detection suspected (status {response.status_code}) on attempt {attempt + 1}")
+                    logger.warning(
+                        f"Bot detection suspected (status {response.status_code}) on attempt {attempt + 1}"
+                    )
                     if attempt < max_retries - 1:
                         time.sleep(random.uniform(3.0, 6.0))
                         continue
@@ -358,7 +357,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             # Handle different content encodings properly
             content_encoding = response.headers.get("content-encoding", "").lower()
             content_type = response.headers.get("content-type", "").lower()
-            
+
             logger.debug(
                 "Response encoding details",
                 extra={
@@ -366,7 +365,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     "content_type": content_type,
                     "response_size": len(response.content) if response.content else 0,
                     "apparent_encoding": response.apparent_encoding,
-                }
+                },
             )
 
             # For brotli compression, let requests handle it automatically
@@ -378,16 +377,21 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     if not content_text and response.content:
                         # Manual brotli decompression as fallback
                         import brotli
+
                         decompressed = brotli.decompress(response.content)
-                        content_text = decompressed.decode('utf-8', errors='replace')
-                        logger.debug("Successfully performed manual brotli decompression")
+                        content_text = decompressed.decode("utf-8", errors="replace")
+                        logger.debug(
+                            "Successfully performed manual brotli decompression"
+                        )
                 except ImportError:
-                    logger.warning("Brotli library not available for manual decompression")
+                    logger.warning(
+                        "Brotli library not available for manual decompression"
+                    )
                     # Try to decode as raw bytes
-                    content_text = response.content.decode('utf-8', errors='replace')
+                    content_text = response.content.decode("utf-8", errors="replace")
                 except Exception as e:
                     logger.warning(f"Brotli decompression failed: {e}")
-                    content_text = response.content.decode('utf-8', errors='replace')
+                    content_text = response.content.decode("utf-8", errors="replace")
             elif content_encoding in ["gzip", "deflate"]:
                 # These should be handled automatically by requests
                 response.encoding = response.apparent_encoding or "utf-8"
@@ -407,19 +411,23 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             if content_text.startswith("\x00"):
                 logger.warning("Received null-prefixed content, likely binary")
                 return None
-                
+
             # Check for excessive unicode replacement characters (indicates corruption)
-            replacement_char_ratio = content_text.count("\ufffd") / len(content_text) if content_text else 1
+            replacement_char_ratio = (
+                content_text.count("\ufffd") / len(content_text) if content_text else 1
+            )
             if replacement_char_ratio > 0.1:  # More than 10% replacement chars
                 logger.warning(
                     f"High replacement character ratio ({replacement_char_ratio:.2%}), likely corrupted"
                 )
                 return None
-                
+
             # Check if content looks like HTML (even if compressed artifacts exist)
             html_indicators = ["<html", "<head", "<meta", "<title", "<!doctype"]
-            has_html_structure = any(indicator in content_text.lower() for indicator in html_indicators)
-            
+            has_html_structure = any(
+                indicator in content_text.lower() for indicator in html_indicators
+            )
+
             if not has_html_structure and len(content_text) > 100:
                 # Only flag as non-HTML if it's substantial content without HTML structure
                 logger.warning("Content doesn't appear to be HTML")
@@ -432,13 +440,16 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "Instagram page content analysis",
                 extra={
                     "url": canonical_url,
-                    "content_snippet": content_text[:300] if content_text else "No content",
+                    "content_snippet": (
+                        content_text[:300] if content_text else "No content"
+                    ),
                     "contains_meta_tags": '<meta property="og:' in content_text,
                     "contains_json_ld": "application/ld+json" in content_text,
                     "contains_html": "<html" in content_text.lower(),
                     "title_tag": (
                         content_text[
-                            content_text.find("<title") : content_text.find("</title>") + 8
+                            content_text.find("<title") : content_text.find("</title>")
+                            + 8
                         ]
                         if "<title" in content_text
                         else "No title found"
