@@ -75,7 +75,7 @@ class HttpScraper(BaseScraper):
             # Multi-step navigation simulation
             # Step 1: Visit Instagram homepage first
             try:
-                homepage_response = session.get(
+                session.get(
                     "https://www.instagram.com/",
                     proxies=proxies,
                     timeout=10,

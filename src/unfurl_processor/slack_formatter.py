@@ -245,7 +245,6 @@ class SlackFormatter:
             comments = data.get("comments")
             url = data.get("url", "")
             image_url = data.get("image_url")
-            video_url = data.get("video_url")
             content_type = data.get("content_type", "photo")
             is_fallback = data.get("is_fallback", False)
 

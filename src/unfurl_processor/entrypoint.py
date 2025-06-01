@@ -12,7 +12,6 @@ Optimized for fast cold starts and maximum concurrency with:
 import asyncio
 import json
 import os
-import sys
 from typing import Any, Dict
 
 # Performance optimization: Use uvloop if available

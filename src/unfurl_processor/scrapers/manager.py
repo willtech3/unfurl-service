@@ -3,7 +3,7 @@
 import asyncio
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from aws_lambda_powertools import Logger
 
