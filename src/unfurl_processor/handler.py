@@ -32,12 +32,10 @@ except ImportError:
 # Optional zstandard import - fallback if C backend not available in Lambda
 try:
     import zstandard as zstd
-
     ZSTD_AVAILABLE = True
 except ImportError:
     ZSTD_AVAILABLE = False
     zstd = None
-
 
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
