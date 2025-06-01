@@ -212,19 +212,24 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
 def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, Any]]:
     """Extract Instagram post data from the page HTML."""
     try:
-        # Try to find the data in various meta tags
-        og_image = soup.find("meta", property="og:image")
-        og_description = soup.find("meta", property="og:description")
-        og_title = soup.find("meta", property="og:title")
+        # Helper to extract meta tag content.
+        # Checks both 'property' and 'name' attributes.
+        def _get_meta_content(names: list[str]) -> Optional[str]:
+            for n in names:
+                tag = soup.find("meta", attrs={"property": n}) or soup.find(
+                    "meta",
+                    attrs={"name": n},
+                )
+                if tag and tag.get("content"):
+                    return tag["content"]
+            return None
 
-        # Extract from JSON-LD structured data
-        json_ld = soup.find("script", type="application/ld+json")
-        structured_data = None
-        if json_ld and hasattr(json_ld, "string"):
-            try:
-                structured_data = json.loads(json_ld.string)
-            except json.JSONDecodeError:
-                pass
+        # Retrieve commonly used meta values (supporting Twitter fallbacks)
+        og_image_url = _get_meta_content(["og:image", "twitter:image", "og:video"])
+        og_description_content = _get_meta_content(
+            ["og:description", "twitter:description"]
+        )
+        og_title_content = _get_meta_content(["og:title", "twitter:title"])
 
         # Build the data object
         data = {
@@ -235,16 +240,14 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
             "comments": None,
         }
 
-        # Extract image URL
-        if og_image and hasattr(og_image, "get"):
-            content = og_image.get("content")
-            if content:
-                data["media_url"] = content
-                data["media_type"] = "IMAGE"
+        # Extract image / video URL
+        if og_image_url:
+            data["media_url"] = og_image_url
+            data["media_type"] = "VIDEO" if og_image_url.endswith(".mp4") else "IMAGE"
 
         # Extract caption and username
-        if og_description and hasattr(og_description, "get"):
-            description = og_description.get("content", "")
+        description = og_description_content or ""
+        if description:
             # Try to parse Instagram's description format
             match = re.match(
                 r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$',
@@ -269,13 +272,21 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                     data["caption"] = description
 
         # Extract from title if needed
-        if og_title and hasattr(og_title, "get"):
-            title = og_title.get("content", "")
+        if og_title_content:
+            title = og_title_content
             match = re.search(r"@(\w+)", title)
             if match:
                 data["username"] = match.group(1)
 
         # Use structured data if available
+        json_ld = soup.find("script", type="application/ld+json")
+        structured_data = None
+        if json_ld and hasattr(json_ld, "string"):
+            try:
+                structured_data = json.loads(json_ld.string)
+            except json.JSONDecodeError:
+                pass
+
         if structured_data:
             if isinstance(structured_data, dict):
                 if "author" in structured_data:
