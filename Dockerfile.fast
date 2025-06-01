@@ -5,15 +5,16 @@ ARG BASE_IMAGE_URI
 # Use pre-built base image
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
-# Copy requirements file
-COPY requirements-docker.txt /tmp/requirements-docker.txt
+# Use SHELL instruction to set shell for RUN commands, bypassing entrypoint
+SHELL ["/bin/sh", "-c"]
 
-# Install dependencies directly with platform specification
-RUN pip install --no-cache-dir --platform linux_aarch64 --target ${LAMBDA_TASK_ROOT} --only-binary=:all: -r /tmp/requirements-docker.txt || \
-    pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
+# Copy requirements file and install dependencies
+COPY requirements-docker.txt /tmp/requirements-docker.txt
+RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
 
-# Set the Lambda handler (entrypoint is inherited from base image)
+# Restore Lambda runtime entrypoint and set handler
+ENTRYPOINT ["/lambda-entrypoint.sh"]
 CMD ["unfurl_processor.entrypoint.lambda_handler"]
