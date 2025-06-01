@@ -134,12 +134,20 @@ def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
 
 @tracer.capture_method
 def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch Instagram post data using web scraping."""
+    """Fetch Instagram post data using web scraping.
+
+    The function first tries to scrape the canonical Instagram page. If scraping
+    fails, it falls back to the oEmbed endpoints. All cache operations use the
+    canonical URL to avoid duplicate cache entries for the same post with
+    different query parameters (e.g. `?img_index`).
+    """
     try:
+        # Use canonical URL for cache look-ups and network requests
+        canonical_url = canonicalize_instagram_url(url)
+
         # Check cache first
-        cached_data = get_cached_unfurl(url)
+        cached_data = get_cached_unfurl(canonical_url)
         if cached_data:
-            # cached_data is already a dict, not a string
             return cached_data
 
         # Fetch the Instagram page
@@ -159,17 +167,15 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
             "Upgrade-Insecure-Requests": "1",
         }
 
-        response = requests.get(url, headers=headers, timeout=10)
-        # Log response status to help troubleshoot latency or throttling.
+        response = requests.get(canonical_url, headers=headers, timeout=10)
         logger.debug(
             "Fetched Instagram page",
             extra={
                 "status_code": response.status_code,
-                "url": url,
+                "url": canonical_url,
                 "content_length": len(response.text),
             },
         )
-
         response.raise_for_status()
 
         # Parse the HTML
@@ -184,11 +190,11 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
                 "HTML scrape yielded no data, attempting oEmbed fallback",
                 extra={"url": url},
             )
-            data = fetch_instagram_oembed(url)
+            data = fetch_instagram_oembed(canonical_url)
 
         if data:
-            # Cache the result
-            cache_unfurl(url, data)
+            # Cache the result using canonical URL so future variants hit cache
+            cache_unfurl(canonical_url, data)
 
             if metrics:
                 metrics.add_metric(
@@ -609,3 +615,24 @@ else:
     lambda_handler = logger.inject_lambda_context(
         correlation_id_path="Records[0].Sns.MessageId"
     )(tracer.capture_lambda_handler(_lambda_handler))
+
+
+# NEW: Helper to canonicalize Instagram URLs by removing query parameters and fragments
+# This helps ensure consistent caching and improves scraping reliability when URLs
+# contain parameters like `?img_index` or tracking values.
+
+
+def canonicalize_instagram_url(url: str) -> str:  # noqa: D401
+    """Return the canonical Instagram URL without query params or fragments.
+
+    Examples
+    --------
+    >>> canonicalize_instagram_url("https://www.instagram.com/p/ABC123/?img_index=4")
+    'https://www.instagram.com/p/ABC123/'
+    """
+    parsed = urlparse(url)
+    # Ensure path always ends with a trailing slash for consistency, as Instagram
+    # canonical links include the final slash (e.g. `/p/<id>/`).
+    path = parsed.path if parsed.path.endswith("/") else f"{parsed.path}/"
+
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
