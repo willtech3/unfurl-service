@@ -20,7 +20,8 @@ RUN dnf update -y && \
         libXrandr \
         mesa-libgbm \
         libXScrnSaver \
-        alsa-lib && \
+        alsa-lib \
+        binutils && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
@@ -36,6 +37,9 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 p
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
     python -m playwright install chromium
+
+# Install binutils for strip command (binary optimization)
+RUN dnf install -y binutils && dnf clean all
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \
