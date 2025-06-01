@@ -3,6 +3,9 @@
 ARG BASE_IMAGE_URI
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
+# Use SHELL instruction to set shell for RUN commands, bypassing entrypoint
+SHELL ["/bin/sh", "-c"]
+
 # Override entrypoint during build to allow normal shell commands
 ENTRYPOINT []
 
