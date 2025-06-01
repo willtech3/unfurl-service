@@ -284,25 +284,71 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
             if match:
                 data["username"] = match.group(1)
 
-        # Use structured data if available
+        # Use structured data (JSON-LD) if available
         json_ld = soup.find("script", type="application/ld+json")
-        structured_data = None
-        if json_ld and hasattr(json_ld, "string"):
+        structured_data: Any | None = None
+        if json_ld and (json_ld.string or json_ld.text):
+            raw_json = json_ld.string or json_ld.text
             try:
-                structured_data = json.loads(json_ld.string)
+                structured_data = json.loads(raw_json)
             except json.JSONDecodeError:
-                pass
+                structured_data = None
 
+        # Normalise JSON-LD to a list of dictionaries for easier processing
         if structured_data:
-            if isinstance(structured_data, dict):
-                if "author" in structured_data:
-                    data["username"] = structured_data["author"].get(
+            items = (
+                structured_data
+                if isinstance(structured_data, list)
+                else [structured_data]
+            )
+            # Pick the first item that contains media information
+            primary = next(
+                (
+                    item
+                    for item in items
+                    if isinstance(item, dict)
+                    and (
+                        "thumbnailUrl" in item
+                        or "image" in item
+                        or item.get("@type") in {"ImageObject", "VideoObject"}
+                    )
+                ),
+                None,
+            )
+
+            if primary and isinstance(primary, dict):
+                # Username
+                if "author" in primary and isinstance(primary["author"], dict):
+                    data["username"] = primary["author"].get(
                         "name", data.get("username", "Instagram User")
                     )
-                if "caption" in structured_data:
-                    data["caption"] = structured_data["caption"]
-                if "uploadDate" in structured_data:
-                    data["timestamp"] = structured_data["uploadDate"]
+
+                # Caption
+                if "caption" in primary:
+                    data["caption"] = primary["caption"]
+
+                # Timestamp
+                if "uploadDate" in primary:
+                    data["timestamp"] = primary["uploadDate"]
+
+                # Media URL (thumbnail or image)
+                thumb = primary.get("thumbnailUrl") or primary.get("image")
+                if isinstance(thumb, list):
+                    thumb = thumb[0]
+                if thumb:
+                    data["media_url"] = thumb
+                    data["media_type"] = "VIDEO" if thumb.endswith(".mp4") else "IMAGE"
+
+                # Engagement metrics if available
+                interaction = primary.get("interactionStatistic")
+                if isinstance(interaction, list):
+                    for stat in interaction:
+                        if not isinstance(stat, dict):
+                            continue
+                        if stat.get("name") == "LikeAction":
+                            data["likes"] = stat.get("userInteractionCount")
+                        elif stat.get("name") == "CommentAction":
+                            data["comments"] = stat.get("userInteractionCount")
 
         return data if "media_url" in data else None
 
@@ -328,7 +374,11 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                 oembed_data.get("thumbnail_url")
                 or oembed_data.get("thumbnail_url_with_play_button")
             ),
-            "media_type": "IMAGE",
+            "media_type": (
+                "VIDEO"
+                if oembed_data.get("thumbnail_url_with_play_button")
+                else "IMAGE"
+            ),
             "username": oembed_data.get("author_name", "Instagram User"),
             "caption": oembed_data.get("title", ""),
             "timestamp": datetime.utcnow().isoformat(),
