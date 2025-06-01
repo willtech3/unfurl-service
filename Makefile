@@ -45,7 +45,8 @@ lint:
 
 format:
 	uv run black src/ tests/
-	uv run isort src/ tests/
+	# Use module invocation for isort as well
+	uv run python -m isort src/ tests/
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
