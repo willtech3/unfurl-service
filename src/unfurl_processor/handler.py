@@ -292,12 +292,14 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
     app_secret = os.getenv("FACEBOOK_APP_SECRET")
 
     def _convert_oembed(oembed_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert oEmbed payload into the internal data structure expected by the service."""
+        """Convert oEmbed payload into internal unfurl data format."""
         return {
             "id": extract_post_id(url),
             "permalink": url,
-            "media_url": oembed_data.get("thumbnail_url")
-            or oembed_data.get("thumbnail_url_with_play_button"),
+            "media_url": (
+                oembed_data.get("thumbnail_url")
+                or oembed_data.get("thumbnail_url_with_play_button")
+            ),
             "media_type": "IMAGE",
             "username": oembed_data.get("author_name", "Instagram User"),
             "caption": oembed_data.get("title", ""),
@@ -317,7 +319,10 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             if resp.status_code == 200:
                 return _convert_oembed(resp.json())
             logger.debug(
-                "Graph oEmbed request failed, falling back to legacy endpoint",
+                (
+                    "Graph oEmbed request failed, "
+                    "falling back to legacy endpoint"
+                ),
                 extra={"status_code": resp.status_code, "url": url},
             )
 
