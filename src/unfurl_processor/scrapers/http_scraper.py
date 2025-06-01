@@ -58,7 +58,7 @@ class HttpScraper(BaseScraper):
             session = requests.Session()
 
             # Random user agent for each request
-            user_agent = random.choice(self.user_agents)
+            user_agent = random.choice(self.user_agents)  # nosec B311
 
             # Comprehensive browser-like headers
             headers = {
@@ -90,7 +90,7 @@ class HttpScraper(BaseScraper):
             # Set proxy if available
             proxies = {}
             if self.proxy_urls:
-                proxy_url = random.choice(self.proxy_urls)
+                proxy_url = random.choice(self.proxy_urls)  # nosec B311
                 proxies = {"http": proxy_url, "https": proxy_url}
                 self.logger.info(f"Using proxy: {proxy_url}")
 
@@ -105,7 +105,7 @@ class HttpScraper(BaseScraper):
                 )
 
                 # Human-like delay
-                time.sleep(random.uniform(0.5, 2.0))
+                time.sleep(random.uniform(0.5, 2.0))  # nosec B311
 
             except Exception as e:
                 self.logger.warning(f"Homepage visit failed: {e}")

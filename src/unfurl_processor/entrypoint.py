@@ -105,6 +105,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             try:
                 metrics.flush_metrics()
             except Exception:
+                # Metrics flush is non-critical, continue execution
                 pass
 
 

@@ -126,9 +126,9 @@ class PlaywrightScraper(BaseScraper):
 
                 # Create persistent context with mobile emulation
                 self.context = await self.browser.new_context(
-                    viewport=random.choice(self.viewport_sizes),
-                    user_agent=random.choice(self.mobile_user_agents),
-                    device_scale_factor=random.choice([1, 2]),
+                    viewport=random.choice(self.viewport_sizes),  # nosec B311
+                    user_agent=random.choice(self.mobile_user_agents),  # nosec B311
+                    device_scale_factor=random.choice([1, 2]),  # nosec B311
                     is_mobile=True,  # Mobile Instagram often has better metadata
                     has_touch=True,
                     locale="en-US",
@@ -216,7 +216,7 @@ class PlaywrightScraper(BaseScraper):
                 pass
 
             # Small delay to simulate human reading
-            await asyncio.sleep(random.uniform(0.5, 1.5))
+            await asyncio.sleep(random.uniform(0.5, 1.5))  # nosec B311
 
             # Get page content
             content = await page.content()
@@ -267,6 +267,7 @@ class PlaywrightScraper(BaseScraper):
                 try:
                     await page.close()
                 except Exception:
+                    # Page cleanup is non-critical, ignore any errors
                     pass
 
     def _extract_enhanced_data(
@@ -395,7 +396,8 @@ class PlaywrightScraper(BaseScraper):
                     pass
 
         except Exception:
-            pass  # Non-critical parsing
+            # Non-critical parsing, continue execution
+            pass
 
     def _extract_post_id(self, url: str) -> Optional[str]:
         """Extract Instagram post ID from URL."""
@@ -435,7 +437,6 @@ class PlaywrightScraper(BaseScraper):
                 # Create event loop if none exists for cleanup
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # Schedule cleanup for later if loop is running
                     loop.create_task(self.cleanup())
                 else:
                     loop.run_until_complete(self.cleanup())
