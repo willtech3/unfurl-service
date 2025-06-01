@@ -323,7 +323,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                         continue
                 elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
                     logger.warning(
-                        f"Bot detection suspected (status {response.status_code}) on attempt {attempt + 1}"
+                        f"Bot detection suspected (status {response.status_code}) "
+                        f"on attempt {attempt + 1}"
                     )
                     if attempt < max_retries - 1:
                         time.sleep(random.uniform(3.0, 6.0))
@@ -370,8 +371,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
             # For brotli compression, let requests handle it automatically
             if content_encoding in ["br", "brotli"]:
-                # requests should handle brotli automatically if brotli library is available
-                # If it fails, the content will be in response.content as compressed bytes
+                # requests should handle brotli automatically if library available
                 try:
                     content_text = response.text
                     if not content_text and response.content:
@@ -380,9 +380,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
                         decompressed = brotli.decompress(response.content)
                         content_text = decompressed.decode("utf-8", errors="replace")
-                        logger.debug(
-                            "Successfully performed manual brotli decompression"
-                        )
+                        logger.debug("Manual brotli decompression successful")
                 except ImportError:
                     logger.warning(
                         "Brotli library not available for manual decompression"
@@ -418,7 +416,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             )
             if replacement_char_ratio > 0.1:  # More than 10% replacement chars
                 logger.warning(
-                    f"High replacement character ratio ({replacement_char_ratio:.2%}), likely corrupted"
+                    f"High replacement character ratio ({replacement_char_ratio:.2%}), "
+                    "likely corrupted"
                 )
                 return None
 
@@ -429,7 +428,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             )
 
             if not has_html_structure and len(content_text) > 100:
-                # Only flag as non-HTML if it's substantial content without HTML structure
+                # Only flag as non-HTML if substantial content without HTML structure
                 logger.warning("Content doesn't appear to be HTML")
                 return None
 
