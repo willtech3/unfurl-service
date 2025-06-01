@@ -38,6 +38,7 @@ except ImportError:
     ZSTD_AVAILABLE = False
     zstd = None
 
+
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
 logger = Logger(service=os.getenv("POWERTOOLS_SERVICE_NAME", "UnfurlService"))
