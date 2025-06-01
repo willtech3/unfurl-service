@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 
 import boto3
 import requests
-import zstandard as zstd
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -29,6 +28,15 @@ try:
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     sync_playwright = None
+
+# Optional zstandard import - fallback if C backend not available in Lambda
+try:
+    import zstandard as zstd
+
+    ZSTD_AVAILABLE = True
+except ImportError:
+    ZSTD_AVAILABLE = False
+    zstd = None
 
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
@@ -210,7 +218,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "application/signed-exchange;v=b3;q=0.7"
             ),
             "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
             "DNT": "1",
             "Upgrade-Insecure-Requests": "1",
@@ -263,10 +271,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
         # Step 3: Update headers for the actual post request
         session.headers.update(
-            {
-                "Referer": "https://www.instagram.com/",
-                "Sec-Fetch-Site": "same-origin",
-            }
+            {"Referer": "https://www.instagram.com/", "Sec-Fetch-Site": "same-origin"}
         )
 
         logger.debug("Making request to Instagram", extra={"url": canonical_url})
@@ -299,14 +304,19 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
             if content_encoding == "zstd":
                 # Manual zstd decompression if needed
-                try:
-                    decompressor = zstd.ZstdDecompressor()
-                    decompressed = decompressor.decompress(response.content)
-                    content_text = decompressed.decode("utf-8")
-                    logger.debug("Successfully decompressed zstd content")
-                except Exception as zstd_error:
-                    logger.warning(f"zstd decompression failed: {zstd_error}")
-                    # Fall back to requests default handling
+                if ZSTD_AVAILABLE:
+                    try:
+                        decompressor = zstd.ZstdDecompressor()
+                        decompressed = decompressor.decompress(response.content)
+                        content_text = decompressed.decode("utf-8")
+                        logger.debug("Successfully decompressed zstd content")
+                    except Exception as zstd_error:
+                        logger.warning(f"zstd decompression failed: {zstd_error}")
+                        # Fall back to requests default handling
+                        response.encoding = response.apparent_encoding or "utf-8"
+                        content_text = response.text
+                else:
+                    logger.warning("zstd decompression not available, skipping")
                     response.encoding = response.apparent_encoding or "utf-8"
                     content_text = response.text
             else:
@@ -415,8 +425,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL",
-            extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -479,7 +488,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             ),
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
             "DNT": "1",
             "Sec-Fetch-Dest": "empty",
@@ -606,8 +615,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data",
-            extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
         )
 
     return None
@@ -621,8 +629,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta",
-                    attrs={"name": n},
+                    "meta", attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -950,11 +957,7 @@ def create_fallback_unfurl(url: str) -> Dict[str, Any]:
 
     logger.info(
         "Created fallback unfurl data",
-        extra={
-            "url": url,
-            "post_id": post_id,
-            "fallback": True,
-        },
+        extra={"url": url, "post_id": post_id, "fallback": True},
     )
 
     return fallback_data

@@ -494,17 +494,6 @@ class TestUnfurlProcessor:
             "http://proxy2:8080",
         ]
 
-    def test_browser_automation_unavailable(self):
-        """Test browser automation when Playwright is not available."""
-        from src.unfurl_processor.handler import fetch_instagram_data_with_browser
-
-        # Mock PLAYWRIGHT_AVAILABLE as False
-        with patch("src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", False):
-            result = fetch_instagram_data_with_browser(
-                "https://www.instagram.com/p/ABC123/"
-            )
-            assert result is None
-
     @patch("src.unfurl_processor.handler.sync_playwright")
     def test_browser_automation_success(self, mock_playwright):
         """Test successful browser automation."""
@@ -540,8 +529,8 @@ class TestUnfurlProcessor:
         # Mock cache to return None
         with patch(
             "src.unfurl_processor.handler.get_cached_unfurl", return_value=None
-        ), patch("src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", True), patch(
-            "src.unfurl_processor.handler.cache_unfurl"
+        ), patch("src.unfurl_processor.handler.cache_unfurl"), patch(
+            "src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", True
         ):
 
             url = "https://www.instagram.com/p/ABC123/"
@@ -560,11 +549,21 @@ class TestUnfurlProcessor:
         # Mock Playwright to raise an exception
         mock_playwright.return_value.__enter__.side_effect = Exception("Browser failed")
 
-        with (
-            patch("src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", True),
-            patch("src.unfurl_processor.handler.get_cached_unfurl", return_value=None),
+        with patch("src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", True), patch(
+            "src.unfurl_processor.handler.get_cached_unfurl", return_value=None
         ):
 
+            result = fetch_instagram_data_with_browser(
+                "https://www.instagram.com/p/ABC123/"
+            )
+            assert result is None
+
+    def test_browser_automation_unavailable(self):
+        """Test browser automation when Playwright is not available."""
+        from src.unfurl_processor.handler import fetch_instagram_data_with_browser
+
+        # Mock PLAYWRIGHT_AVAILABLE as False
+        with patch("src.unfurl_processor.handler.PLAYWRIGHT_AVAILABLE", False):
             result = fetch_instagram_data_with_browser(
                 "https://www.instagram.com/p/ABC123/"
             )
