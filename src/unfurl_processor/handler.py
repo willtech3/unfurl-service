@@ -170,7 +170,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
         # Create session for cookie persistence and better bot evasion
         session = requests.Session()
-        
+
         # More sophisticated user agents with recent versions
         user_agents = [
             (
@@ -224,14 +224,14 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             "Sec-CH-UA-Platform": '"Windows"',
             "Pragma": "no-cache",
         }
-        
+
         # Add referer for more realistic browsing pattern
         if "instagram.com" in canonical_url:
             base_headers["Referer"] = "https://www.instagram.com/"
 
         # Set up session headers
         session.headers.update(base_headers)
-        
+
         # Configure proxies if available
         proxies = {}
         if PROXY_LIST:
@@ -243,13 +243,13 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
         # Step 1: Visit Instagram homepage first to get initial cookies (simulate real browsing)
         logger.debug("Visiting Instagram homepage to establish session")
         time.sleep(random.uniform(0.3, 0.8))  # nosec B311
-        
+
         try:
             homepage_response = session.get(
-                "https://www.instagram.com/", 
-                proxies=proxies, 
+                "https://www.instagram.com/",
+                proxies=proxies,
                 timeout=10,
-                allow_redirects=True
+                allow_redirects=True,
             )
             logger.debug(f"Homepage visit status: {homepage_response.status_code}")
         except Exception as e:
@@ -259,22 +259,21 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
         time.sleep(random.uniform(1.0, 2.5))  # nosec B311
 
         # Step 3: Update headers for the actual post request
-        session.headers.update({
-            "Referer": "https://www.instagram.com/",
-            "Sec-Fetch-Site": "same-origin",
-        })
+        session.headers.update(
+            {"Referer": "https://www.instagram.com/", "Sec-Fetch-Site": "same-origin",}
+        )
 
         logger.debug("Making request to Instagram", extra={"url": canonical_url})
 
         # Make the main request with enhanced error handling
         response = session.get(
-            canonical_url, 
-            proxies=proxies, 
+            canonical_url,
+            proxies=proxies,
             timeout=15,
             allow_redirects=True,
-            stream=False  # Ensure full response is loaded
+            stream=False,  # Ensure full response is loaded
         )
-        
+
         # Log response details
         logger.info(
             "Fetched Instagram page",
@@ -286,27 +285,29 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "content_encoding": response.headers.get("content-encoding", "none"),
             },
         )
-        
+
         # Check if response is properly decompressed
         try:
             # Force response encoding detection
-            response.encoding = response.apparent_encoding or 'utf-8'
+            response.encoding = response.apparent_encoding or "utf-8"
             content_text = response.text
-            
+
             # Verify we got HTML content, not binary data
             if not content_text or len(content_text.strip()) == 0:
                 logger.warning("Received empty response content")
                 return None
-                
+
             # Check for obvious signs of binary content
-            if content_text.startswith('\x00') or '\ufffd' in content_text[:100]:
-                logger.warning("Received binary/corrupted response, likely bot detection")
+            if content_text.startswith("\x00") or "\ufffd" in content_text[:100]:
+                logger.warning(
+                    "Received binary/corrupted response, likely bot detection"
+                )
                 return None
-                
+
         except UnicodeDecodeError as e:
             logger.error(f"Failed to decode response: {e}")
             return None
-        
+
         response.raise_for_status()
 
         # Enhanced content debugging
@@ -346,7 +347,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 for tag in soup.find_all("meta")
                 if tag.get("property") or tag.get("name")
             ]
-            
+
             logger.warning(
                 "HTML scrape yielded no data - debugging extraction",
                 extra={
@@ -356,7 +357,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                         soup.find("meta", property="og:description")
                     ),
                     "meta_og_title": bool(soup.find("meta", property="og:title")),
-                    "json_ld_scripts": len(soup.find_all("script", type="application/ld+json")),
+                    "json_ld_scripts": len(
+                        soup.find_all("script", type="application/ld+json")
+                    ),
                     "all_meta_tags": all_meta_tags[:10],  # Limit for logging
                     "page_title": soup.title.string if soup.title else "No title",
                 },
@@ -390,8 +393,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL",
-            extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -444,7 +446,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
     try:
         # Create session for better bot evasion
         session = requests.Session()
-        
+
         # Enhanced headers for oEmbed requests
         enhanced_headers = {
             "User-Agent": (
@@ -463,7 +465,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             "Referer": "https://www.instagram.com/",
             "Origin": "https://www.instagram.com",
         }
-        
+
         session.headers.update(enhanced_headers)
 
         # 1️⃣ Attempt Graph endpoint which requires app credentials
@@ -473,12 +475,12 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                 "access_token": f"{app_id}|{app_secret}",
                 "omitscript": "true",
             }
-            
+
             # Add delay for more human-like behavior
             time.sleep(random.uniform(0.2, 0.6))  # nosec B311
-            
+
             resp = session.get(graph_endpoint, params=params, timeout=15)
-            
+
             logger.debug(
                 "Graph oEmbed response",
                 extra={
@@ -492,17 +494,25 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             if resp.status_code == 200:
                 try:
                     # Check for binary content before JSON parsing
-                    if resp.text and not resp.text.startswith('\x00') and '\ufffd' not in resp.text[:50]:
+                    if (
+                        resp.text
+                        and not resp.text.startswith("\x00")
+                        and "\ufffd" not in resp.text[:50]
+                    ):
                         return _convert_oembed(resp.json())
                     else:
-                        logger.warning("Graph oEmbed returned binary data, likely bot detection")
+                        logger.warning(
+                            "Graph oEmbed returned binary data, likely bot detection"
+                        )
                 except ValueError as json_err:  # JSONDecodeError inherits ValueError
                     logger.error(
                         "Failed to parse Graph oEmbed JSON",
                         extra={
                             "url": url,
                             "error": str(json_err),
-                            "response_snippet": resp.text[:200] if resp.text else "No content",
+                            "response_snippet": resp.text[:200]
+                            if resp.text
+                            else "No content",
                         },
                     )
             else:
@@ -513,10 +523,10 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
         # 2️⃣ Legacy endpoint does not need credentials and still works for public posts
         params = {"url": url, "omitscript": "true"}
-        
+
         # Add another delay
         time.sleep(random.uniform(0.3, 0.8))  # nosec B311
-        
+
         resp = session.get(legacy_endpoint, params=params, timeout=15)
 
         logger.debug(
@@ -533,16 +543,22 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
         if resp.status_code == 200:
             try:
                 # Enhanced binary content detection
-                if not resp.text or resp.text.startswith('\x00') or '\ufffd' in resp.text[:50]:
-                    logger.warning("Legacy oEmbed returned binary data, likely bot detection")
+                if (
+                    not resp.text
+                    or resp.text.startswith("\x00")
+                    or "\ufffd" in resp.text[:50]
+                ):
+                    logger.warning(
+                        "Legacy oEmbed returned binary data, likely bot detection"
+                    )
                     return None
-                    
+
                 # Verify JSON structure before parsing
                 content = resp.text.strip()
-                if not (content.startswith('{') and content.endswith('}')):
+                if not (content.startswith("{") and content.endswith("}")):
                     logger.warning("Legacy oEmbed response is not valid JSON format")
                     return None
-                    
+
                 return _convert_oembed(resp.json())
             except ValueError as json_err:
                 logger.error(
@@ -550,7 +566,9 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                     extra={
                         "url": url,
                         "error": str(json_err),
-                        "response_snippet": resp.text[:200] if resp.text else "No content",
+                        "response_snippet": resp.text[:200]
+                        if resp.text
+                        else "No content",
                     },
                 )
 
@@ -565,8 +583,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data",
-            extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
         )
 
     return None
@@ -580,8 +597,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta",
-                    attrs={"name": n},
+                    "meta", attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -909,11 +925,7 @@ def create_fallback_unfurl(url: str) -> Dict[str, Any]:
 
     logger.info(
         "Created fallback unfurl data",
-        extra={
-            "url": url,
-            "post_id": post_id,
-            "fallback": True,
-        },
+        extra={"url": url, "post_id": post_id, "fallback": True,},
     )
 
     return fallback_data

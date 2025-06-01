@@ -58,31 +58,31 @@ class TestUnfurlProcessor:
             # Create mock session instance
             mock_session = MagicMock()
             mock_session_class.return_value = mock_session
-            
+
             # Mock homepage response
             mock_homepage_response = MagicMock()
             mock_homepage_response.status_code = 200
-            
+
             # Mock main response
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.text = mock_html
-            mock_response.content = mock_html.encode('utf-8')
-            mock_response.apparent_encoding = 'utf-8'
-            mock_response.encoding = 'utf-8'
+            mock_response.content = mock_html.encode("utf-8")
+            mock_response.apparent_encoding = "utf-8"
+            mock_response.encoding = "utf-8"
             mock_response.headers = {
-                'content-type': 'text/html; charset=utf-8',
-                'content-encoding': 'none'
+                "content-type": "text/html; charset=utf-8",
+                "content-encoding": "none",
             }
             mock_response.raise_for_status = MagicMock()
-            
+
             # Configure session.get to return different responses for different calls
             def side_effect(url, **kwargs):
                 if url == "https://www.instagram.com/":
                     return mock_homepage_response
                 else:
                     return mock_response
-            
+
             mock_session.get.side_effect = side_effect
             mock_session.headers = {}
 
@@ -93,7 +93,7 @@ class TestUnfurlProcessor:
             assert data is not None
             assert data["media_url"] == "https://example.com/image.jpg"
             assert "Test caption" in data["caption"]
-            assert data["username"] == "testuser"  
+            assert data["username"] == "testuser"
 
     @pytest.mark.skip(reason="Cache test requires complex DynamoDB mocking")
     @mock_dynamodb
@@ -265,31 +265,31 @@ class TestUnfurlProcessor:
                             # Mock session and response
                             mock_session = MagicMock()
                             mock_session_class.return_value = mock_session
-                            
+
                             # Mock homepage response
                             mock_homepage_response = MagicMock()
                             mock_homepage_response.status_code = 200
-                            
+
                             # Mock successful response
                             mock_response = MagicMock()
                             mock_response.status_code = 200
                             mock_response.text = mock_html
-                            mock_response.content = mock_html.encode('utf-8')
-                            mock_response.apparent_encoding = 'utf-8'
-                            mock_response.encoding = 'utf-8'
+                            mock_response.content = mock_html.encode("utf-8")
+                            mock_response.apparent_encoding = "utf-8"
+                            mock_response.encoding = "utf-8"
                             mock_response.headers = {
-                                'content-type': 'text/html; charset=utf-8',
-                                'content-encoding': 'none'
+                                "content-type": "text/html; charset=utf-8",
+                                "content-encoding": "none",
                             }
                             mock_response.raise_for_status = MagicMock()
-                            
+
                             # Configure session.get to return different responses for different calls
                             def side_effect(url, **kwargs):
                                 if url == "https://www.instagram.com/":
                                     return mock_homepage_response
                                 else:
                                     return mock_response
-                            
+
                             mock_session.get.side_effect = side_effect
                             mock_session.headers = {}
 
@@ -361,15 +361,15 @@ class TestUnfurlProcessor:
             # Create mock session instance
             mock_session = MagicMock()
             mock_session_class.return_value = mock_session
-            
+
             # Mock response for oEmbed
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.text = '{"thumbnail_url": "https://example.com/thumb.jpg", "author_name": "oembed_user", "title": "oEmbed caption"}'
             mock_response.content = b'{"thumbnail_url": "https://example.com/thumb.jpg", "author_name": "oembed_user", "title": "oEmbed caption"}'
             mock_response.headers = {
-                'content-type': 'application/json',
-                'content-encoding': 'none'
+                "content-type": "application/json",
+                "content-encoding": "none",
             }
             mock_response.json.return_value = {
                 "thumbnail_url": "https://example.com/thumb.jpg",
@@ -423,11 +423,11 @@ class TestUnfurlProcessor:
         # Mock session and response
         mock_session = MagicMock()
         mock_session_class.return_value = mock_session
-        
+
         # Mock homepage response
         mock_homepage_response = MagicMock()
         mock_homepage_response.status_code = 200
-        
+
         # Mock successful response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -440,22 +440,22 @@ class TestUnfurlProcessor:
         </head>
         </html>
         """
-        mock_response.content = mock_response.text.encode('utf-8')
-        mock_response.apparent_encoding = 'utf-8'
-        mock_response.encoding = 'utf-8'
+        mock_response.content = mock_response.text.encode("utf-8")
+        mock_response.apparent_encoding = "utf-8"
+        mock_response.encoding = "utf-8"
         mock_response.headers = {
-            'content-type': 'text/html; charset=utf-8',
-            'content-encoding': 'none'
+            "content-type": "text/html; charset=utf-8",
+            "content-encoding": "none",
         }
         mock_response.raise_for_status = MagicMock()
-        
+
         # Configure session.get to return different responses for different calls
         def side_effect(url, **kwargs):
             if url == "https://www.instagram.com/":
                 return mock_homepage_response
             else:
                 return mock_response
-        
+
         mock_session.get.side_effect = side_effect
         mock_session.headers = {}
 
