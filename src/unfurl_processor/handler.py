@@ -181,7 +181,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
         ]
 
         headers = {
-            "User-Agent": random.choice(user_agents),
+            "User-Agent": random.choice(user_agents),  # nosec B311
             "Accept": (
                 "text/html,application/xhtml+xml,application/xml;q=0.9,"
                 "image/avif,image/webp,image/apng,*/*;q=0.8"
@@ -204,7 +204,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
         }
 
         # Add random delay to appear more human-like
-        time.sleep(random.uniform(0.5, 2.0))
+        time.sleep(random.uniform(0.5, 2.0))  # nosec B311
 
         logger.debug("Making request to Instagram", extra={"url": canonical_url})
 
