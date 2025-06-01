@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 import boto3
 import requests
+import zstandard as zstd
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -293,16 +294,32 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
         # Check if response is properly decompressed
         try:
-            # Force response encoding detection
-            response.encoding = response.apparent_encoding or "utf-8"
-            content_text = response.text
+            # Handle manual decompression for zstd if requests didn't handle it
+            content_encoding = response.headers.get("content-encoding", "").lower()
+
+            if content_encoding == "zstd":
+                # Manual zstd decompression if needed
+                try:
+                    decompressor = zstd.ZstdDecompressor()
+                    decompressed = decompressor.decompress(response.content)
+                    content_text = decompressed.decode("utf-8")
+                    logger.debug("Successfully decompressed zstd content")
+                except Exception as zstd_error:
+                    logger.warning(f"zstd decompression failed: {zstd_error}")
+                    # Fall back to requests default handling
+                    response.encoding = response.apparent_encoding or "utf-8"
+                    content_text = response.text
+            else:
+                # Normal handling for other encodings (gzip, br, deflate, etc.)
+                response.encoding = response.apparent_encoding or "utf-8"
+                content_text = response.text
 
             # Verify we got HTML content, not binary data
             if not content_text or len(content_text.strip()) == 0:
                 logger.warning("Received empty response content")
                 return None
 
-            # Check for obvious signs of binary content
+            # Check for obvious signs of binary content or corruption
             if content_text.startswith("\x00") or "\ufffd" in content_text[:100]:
                 logger.warning(
                     "Received binary/corrupted response, likely bot detection"
