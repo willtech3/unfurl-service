@@ -254,35 +254,48 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         # Extract caption and username
         description = og_description_content or ""
         if description:
-            # Try to parse Instagram's description format
-            match = re.match(
-                r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$',
-                description,
+            description = description.strip()
+            # Regex tolerant to variations (case, pluralisation, extra text)
+            desc_pattern = (
+                r"^(?P<likes>[\\d,.]+)\\s+likes?,\\s+"
+                r"(?P<comments>[\\d,.]+)\\s+comments?\\s+-\\s+"
+                r'(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"(?P<caption>.+)"'
             )
-            if match:
-                data["likes"] = match.group(1).replace(",", "")
-                data["comments"] = match.group(2).replace(",", "")
-                data["username"] = match.group(3)
-                data["caption"] = match.group(4)
+            desc_match = re.match(desc_pattern, description, flags=re.IGNORECASE)
+            if desc_match:
+                data["likes"] = desc_match.group("likes").replace(",", "")
+                data["comments"] = desc_match.group("comments").replace(",", "")
+                data["username"] = desc_match.group("username")
+                data["caption"] = desc_match.group("caption")
             else:
-                # Fallback parsing
-                parts = description.split(" on Instagram: ")
-                if len(parts) == 2:
-                    data["username"] = (
-                        parts[0].split(" - ")[-1]
-                        if " - " in parts[0]
-                        else "Instagram User"
-                    )
-                    data["caption"] = parts[1].strip('"')
+                # Fallback: search for pattern "- username on <something>: \"caption\""
+                uc_pattern = (
+                    r'-\\s+(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"(?P<caption>.+)"'
+                )
+                uc_match = re.search(uc_pattern, description, flags=re.IGNORECASE)
+                if uc_match:
+                    data["username"] = uc_match.group("username")
+                    data["caption"] = uc_match.group("caption")
                 else:
-                    data["caption"] = description
+                    # Last resort: just use the raw description as caption (trim period)
+                    data["caption"] = description.rstrip(" .")
 
-        # Extract from title if needed
+        # Extract additional details from the title if available
         if og_title_content:
             title = og_title_content
-            match = re.search(r"@(\w+)", title)
-            if match:
-                data["username"] = match.group(1)
+            # First, attempt to parse @username from the title
+            at_match = re.search(r"@(\\w+)", title)
+            if at_match:
+                data["username"] = at_match.group(1)
+            # Otherwise, take the part before " on " as a potential username/page name
+            elif " on " in title and not data.get("username"):
+                data["username"] = title.split(" on ")[0].strip()
+
+            # If caption not already set, extract quoted part from the title
+            if not data.get("caption"):
+                quoted = re.search(r'"(.+?)"', title)
+                if quoted:
+                    data["caption"] = quoted.group(1)
 
         # Use structured data (JSON-LD) if available
         json_ld = soup.find("script", type="application/ld+json")
