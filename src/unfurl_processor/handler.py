@@ -29,6 +29,15 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     sync_playwright = None
 
+# Brotli compression support
+try:
+    import brotli
+
+    BROTLI_AVAILABLE = True
+except ImportError:
+    BROTLI_AVAILABLE = False
+    brotli = None
+
 # Optional zstandard import - fallback if C backend not available in Lambda
 try:
     import zstandard as zstd
@@ -405,31 +414,45 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
                 # For brotli compression, let requests handle it automatically
                 if content_encoding in ["br", "brotli"]:
-                    # requests should handle brotli automatically if library available
+                    logger.debug(
+                        "Processing brotli-compressed content",
+                        extra={
+                            "brotli_available": BROTLI_AVAILABLE,
+                            "response_size": len(response.content) if response.content else 0,
+                        },
+                    )
+                    
+                    # Try requests automatic decompression first
                     try:
                         content_text = response.text
-                        if not content_text and response.content:
+                        if content_text and len(content_text) > 100:
+                            logger.debug("Requests handled brotli decompression automatically")
+                        else:
                             # Manual brotli decompression as fallback
-                            import brotli
-
-                            decompressed = brotli.decompress(response.content)
-                            content_text = decompressed.decode(
-                                "utf-8", errors="replace"
-                            )
-                            logger.debug("Manual brotli decompression successful")
-                    except ImportError:
-                        logger.warning(
-                            "Brotli library not available for manual decompression"
-                        )
-                        # Try to decode as raw bytes
-                        content_text = response.content.decode(
-                            "utf-8", errors="replace"
-                        )
+                            if BROTLI_AVAILABLE and response.content:
+                                logger.debug("Attempting manual brotli decompression")
+                                decompressed = brotli.decompress(response.content)
+                                content_text = decompressed.decode("utf-8", errors="replace")
+                                logger.debug(
+                                    "Manual brotli decompression successful", 
+                                    extra={"decompressed_size": len(content_text)}
+                                )
+                            else:
+                                logger.warning(
+                                    "Brotli library not available or no content to decompress"
+                                )
+                                # Try to decode as raw bytes (will likely fail content validation)
+                                content_text = response.content.decode("utf-8", errors="replace")
                     except Exception as e:
-                        logger.warning(f"Brotli decompression failed: {e}")
-                        content_text = response.content.decode(
-                            "utf-8", errors="replace"
+                        logger.warning(
+                            f"Brotli decompression failed: {e}",
+                            extra={
+                                "error_type": type(e).__name__,
+                                "brotli_available": BROTLI_AVAILABLE,
+                            }
                         )
+                        # Last resort: decode raw compressed bytes
+                        content_text = response.content.decode("utf-8", errors="replace")
                 elif content_encoding in ["gzip", "deflate"]:
                     # These should be handled automatically by requests
                     response.encoding = response.apparent_encoding or "utf-8"
