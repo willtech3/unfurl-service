@@ -51,17 +51,6 @@ class UnfurlServiceStack(Stack):
             self, "SlackSecret", "unfurl-service/slack"
         )
 
-        # Docker image for the unfurl processor with Playwright
-        unfurl_image = ecr_assets.DockerImageAsset(
-            self,
-            "UnfurlProcessorImage",
-            directory=".",  # Root directory with Dockerfile
-            platform=ecr_assets.Platform.LINUX_ARM64,
-            build_args={
-                "BUILDPLATFORM": "linux/arm64",
-                "TARGETPLATFORM": "linux/arm64",
-            },
-        )
 
         # Lambda layer for shared dependencies (only for event router)
         deps_layer = lambda_.LayerVersion(
@@ -124,7 +113,7 @@ class UnfurlServiceStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
             handler="handler_new.lambda_handler",
-            code=lambda_.Code.from_docker_image(unfurl_image),
+            code=lambda_.Code.from_asset_image(directory=".", platform=ecr_assets.Platform.LINUX_ARM64),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
