@@ -230,6 +230,23 @@ jobs:
         run: |
           source .venv/bin/activate
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          
+          # Ensure ECR authentication for CDK Docker builds if using fast mode
+          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
+            echo "⚡ FAST MODE: Ensuring CDK has ECR access for base image..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+            
+            # Test base image accessibility before CDK deploy
+            if docker pull ${BASE_IMAGE_URI} &>/dev/null; then
+              echo "✅ Base image accessible for fast deployment"
+            else
+              echo "⚠️  Base image not accessible - falling back to standard mode"
+              cp Dockerfile.original Dockerfile
+              export DEPLOYMENT_MODE="standard_fallback"
+            fi
+          fi
+          
+          echo "🚀 Starting CDK deployment in $DEPLOYMENT_MODE mode..."
           cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --no-previous-parameters --verbose
         env:
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
