@@ -42,6 +42,7 @@ cdk = [
 # Optional compression support - may not work in AWS Lambda due to C backend
 compression = [
     "zstandard>=0.22.0",
+    "brotli>=1.1.0",
 ]
 
 [build-system]
