@@ -400,8 +400,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 content_encoding = response.headers.get("content-encoding", "").lower()
                 content_type = response.headers.get("content-type", "").lower()
 
-                logger.debug(
-                    "Response encoding details",
+                logger.info(
+                    "🔍 DEBUGGING: Response encoding details",
                     extra={
                         "content_encoding": content_encoding,
                         "content_type": content_type,
@@ -409,60 +409,94 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                             len(response.content) if response.content else 0
                         ),
                         "apparent_encoding": response.apparent_encoding,
+                        "raw_headers": dict(response.headers),
+                        "brotli_available": BROTLI_AVAILABLE,
                     },
                 )
 
                 # For brotli compression, let requests handle it automatically
                 if content_encoding in ["br", "brotli"]:
-                    logger.debug(
-                        "Processing brotli-compressed content",
+                    logger.info(
+                        "🔍 DEBUGGING: Processing brotli-compressed content",
                         extra={
                             "brotli_available": BROTLI_AVAILABLE,
                             "response_size": (
                                 len(response.content) if response.content else 0
                             ),
+                            "requests_text_preview": response.text[:100] if hasattr(response, 'text') else "No text attribute",
                         },
                     )
 
-                    # Try requests automatic decompression first
                     try:
                         content_text = response.text
-                        if content_text and len(content_text) > 100:
-                            logger.debug(
-                                "Requests handled brotli decompression automatically"
-                            )
+                        logger.info(
+                            "🔍 DEBUGGING: requests.text result",
+                            extra={
+                                "content_length": len(content_text) if content_text else 0,
+                                "content_preview": content_text[:200] if content_text else "No content",
+                                "looks_like_html": "<html" in content_text.lower() if content_text else False,
+                                "has_instagram_meta": 'property="og:' in content_text if content_text else False,
+                            }
+                        )
+                        
+                        if content_text and len(content_text) > 100 and "<" in content_text:
+                            logger.info("✅ Requests handled brotli decompression automatically")
                         else:
+                            logger.warning(
+                                "❌ Requests automatic decompression failed or produced invalid content",
+                                extra={
+                                    "content_length": len(content_text) if content_text else 0,
+                                    "content_sample": content_text[:100] if content_text else "None",
+                                }
+                            )
                             # Manual brotli decompression as fallback
                             if BROTLI_AVAILABLE and response.content:
-                                logger.debug("Attempting manual brotli decompression")
-                                decompressed = brotli.decompress(response.content)
-                                content_text = decompressed.decode(
-                                    "utf-8", errors="replace"
-                                )
-                                logger.debug(
-                                    "Manual brotli decompression successful",
-                                    extra={"decompressed_size": len(content_text)},
-                                )
+                                logger.info("🔧 Attempting manual brotli decompression")
+                                try:
+                                    decompressed = brotli.decompress(response.content)
+                                    content_text = decompressed.decode("utf-8", errors="replace")
+                                    logger.info(
+                                        "✅ Manual brotli decompression successful",
+                                        extra={
+                                            "decompressed_size": len(content_text),
+                                            "content_preview": content_text[:200],
+                                            "looks_like_html": "<html" in content_text.lower(),
+                                        },
+                                    )
+                                except Exception as brotli_e:
+                                    logger.error(
+                                        "❌ Manual brotli decompression failed",
+                                        extra={
+                                            "error": str(brotli_e),
+                                            "error_type": type(brotli_e).__name__,
+                                        }
+                                    )
+                                    content_text = None
                             else:
                                 logger.warning(
-                                    "Brotli library not available or no content"
+                                    "❌ Brotli library not available or no content",
+                                    extra={
+                                        "brotli_available": BROTLI_AVAILABLE,
+                                        "has_content": bool(response.content),
+                                    }
                                 )
-                                # Try to decode as raw bytes
-                                content_text = response.content.decode(
-                                    "utf-8", errors="replace"
-                                )
+                                content_text = None
+                                
+                            # If manual decompression failed, try decoding raw bytes as last resort
+                            if not content_text and response.content:
+                                logger.warning("🚨 Last resort: attempting to decode raw compressed bytes")
+                                content_text = response.content.decode("utf-8", errors="replace")
                     except Exception as e:
-                        logger.warning(
-                            f"Brotli decompression failed: {e}",
+                        logger.error(
+                            "❌ All brotli decompression methods failed",
                             extra={
+                                "error": str(e),
                                 "error_type": type(e).__name__,
                                 "brotli_available": BROTLI_AVAILABLE,
                             },
                         )
                         # Last resort: decode raw compressed bytes
-                        content_text = response.content.decode(
-                            "utf-8", errors="replace"
-                        )
+                        content_text = response.content.decode("utf-8", errors="replace")
                 elif content_encoding in ["gzip", "deflate"]:
                     # These should be handled automatically by requests
                     response.encoding = response.apparent_encoding or "utf-8"
