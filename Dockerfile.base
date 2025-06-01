@@ -1,0 +1,19 @@
+# Base image with Playwright pre-installed for faster deployments
+FROM public.ecr.aws/lambda/python:3.12-arm64
+
+# Install system dependencies
+RUN dnf update -y && \
+    dnf install -y wget ca-certificates findutils && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Install Playwright and download browsers (one-time setup)
+RUN pip install --no-cache-dir playwright==1.45.0 playwright-stealth==1.0.6
+
+# Download browsers using default Playwright location
+RUN python -m playwright install chromium
+
+# Set environment for Lambda
+ENV PYTHONPATH=/var/task
+ENV LAMBDA_TASK_ROOT=/var/task
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright

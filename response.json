@@ -1,1 +1,1 @@
-{"statusCode": 400, "body": "{\"error\": \"Invalid event structure\"}"}
+{"errorMessage": "Unable to import module 'unfurl_processor.entrypoint': No module named 'aiohttp'", "errorType": "Runtime.ImportModuleError", "requestId": "", "stackTrace": []}
