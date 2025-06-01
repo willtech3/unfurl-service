@@ -260,9 +260,9 @@ jobs:
             echo "🔐 Refreshing ECR authentication for CDK deployment..."
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
             
-            # Configure Docker credential helper for CDK builds
+            # Create simplified Docker config for CDK builds
             mkdir -p ~/.docker
-            echo '{"credHelpers": {"'$ECR_URI'": "ecr-login"}}' > ~/.docker/config.json
+            echo '{"auths":{"'$ECR_URI'":{}}}' > ~/.docker/config.json
           fi
           
           # Report deployment mode
