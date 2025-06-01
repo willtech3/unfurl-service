@@ -3,6 +3,9 @@
 ARG BASE_IMAGE_URI
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
+# Override entrypoint during build to allow normal shell commands
+ENTRYPOINT []
+
 # Install only application-specific Python dependencies
 COPY requirements-docker.txt /tmp/
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
@@ -10,5 +13,6 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
 
-# Set the Lambda handler
+# Restore Lambda runtime entrypoint and set handler
+ENTRYPOINT ["/lambda-entrypoint.sh"]
 CMD ["unfurl_processor.entrypoint.lambda_handler"]
