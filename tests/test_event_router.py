@@ -1,9 +1,9 @@
 """Tests for the event router Lambda handler."""
 
+import hashlib
+import hmac
 import json
 import time
-import hmac
-import hashlib
 from unittest.mock import patch
 
 from moto import mock_secretsmanager, mock_sns
@@ -78,6 +78,7 @@ class TestEventRouter:
     def test_get_slack_secret(self):
         """Test retrieving Slack secrets from Secrets Manager."""
         import boto3
+
         from src.event_router.handler import get_slack_secret
 
         # Setup mock secret

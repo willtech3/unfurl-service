@@ -1,23 +1,23 @@
+import json
 import os
-import time
 import re
+import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 from urllib.parse import urlparse
+
 import boto3
 import requests
-from bs4 import BeautifulSoup
-from aws_lambda_powertools import Logger, Tracer, Metrics
+from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-import json
-from typing import cast
 
 # Type imports for boto3
 from boto3.resources.base import ServiceResource
 from botocore.client import BaseClient
+from bs4 import BeautifulSoup
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
@@ -391,7 +391,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None

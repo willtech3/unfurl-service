@@ -147,10 +147,9 @@ class TestUnfurlProcessor:
     def test_lambda_handler(self):
         """Test the main Lambda handler function."""
         import boto3
-        from src.unfurl_processor.handler import lambda_handler
 
         # Clear the secrets cache
-        from src.unfurl_processor.handler import _secrets_cache
+        from src.unfurl_processor.handler import _secrets_cache, lambda_handler
 
         _secrets_cache.clear()
 

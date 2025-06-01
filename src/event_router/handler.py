@@ -1,12 +1,12 @@
 """Event router Lambda handler for Slack events."""
 
+import hashlib
+import hmac
 import json
 import os
-import hmac
-import hashlib
 import time
-from typing import Dict, Any
-from typing import cast
+from typing import Any, Dict, cast
+
 import boto3
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
