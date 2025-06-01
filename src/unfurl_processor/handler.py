@@ -3,7 +3,7 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -97,7 +97,7 @@ def get_cached_unfurl(url: str) -> Optional[Dict[str, Any]]:
                 if metrics:
                     metrics.add_metric(name="CacheHit", unit=MetricUnit.Count, value=1)
                 unfurl_data = item.get("unfurl_data")
-                return cast(Optional[Dict[str, Any]], unfurl_data)
+                return unfurl_data
 
         if metrics:
             metrics.add_metric(name="CacheMiss", unit=MetricUnit.Count, value=1)
@@ -220,7 +220,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
     try:
         # Helper to extract meta tag content.
         # Checks both 'property' and 'name' attributes.
-        def _get_meta_content(names: list[str]) -> Optional[str]:
+        def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
                     "meta",
@@ -277,14 +277,26 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                     data["username"] = uc_match.group("username")
                     data["caption"] = uc_match.group("caption")
                 else:
-                    # Last resort: just use the raw description as caption (trim period)
-                    data["caption"] = description.rstrip(" .")
+                    # Attempt simpler pattern "<username> on Instagram: \"<caption>\""
+                    simple_match = re.match(
+                        r"^(?P<user>.+?) on Instagram:\s+\"(?P<cap>.+)\"",
+                        description,
+                        flags=re.IGNORECASE,
+                    )
+                    if simple_match:
+                        if not data.get("username"):
+                            # Keep existing username if already set later from title
+                            data["username"] = simple_match.group("user")
+                        data["caption"] = simple_match.group("cap")
+                    else:
+                        # Last resort: just use the raw description as caption (trim period)
+                        data["caption"] = description.rstrip(" .")
 
         # Extract additional details from the title if available
         if og_title_content:
             title = og_title_content
             # First, attempt to parse @username from the title
-            at_match = re.search(r"@(\\w+)", title)
+            at_match = re.search(r"@([\w.]+)", title)
             if at_match:
                 data["username"] = at_match.group(1)
             # Otherwise, take the part before " on " as a potential username/page name
@@ -298,8 +310,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                     data["caption"] = quoted.group(1)
 
         # Use structured data (JSON-LD) if available
+        structured_data: Optional[Any] = None
         json_ld = soup.find("script", type="application/ld+json")
-        structured_data: Any | None = None
         if json_ld and (json_ld.string or json_ld.text):
             raw_json = json_ld.string or json_ld.text
             try:
