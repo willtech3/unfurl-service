@@ -104,14 +104,85 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Setup fast deployment base image
+        run: |
+          echo "🔍 Checking for ECR base image to enable fast deployment..."
+          
+          # Get AWS account details
+          AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          ECR_URI="${AWS_ACCOUNT}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+          
+          # Check if ECR repository exists
+          if aws ecr describe-repositories --repository-names unfurl-base --region ${{ env.AWS_REGION }} &>/dev/null; then
+            echo "✅ ECR repository 'unfurl-base' exists"
+            
+            # Check if base image exists
+            if aws ecr describe-images --repository-name unfurl-base --image-ids imageTag=latest --region ${{ env.AWS_REGION }} &>/dev/null; then
+              echo "✅ Base image found - enabling FAST DEPLOYMENT MODE"
+              echo "⚡ Expected build time: ~2-4 minutes (vs ~12-15 minutes standard)"
+              
+              # Switch to fast Dockerfile
+              cp Dockerfile.fast Dockerfile
+              echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
+              echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+            else
+              echo "⚠️  Base image not found - building base image for future fast deployments"
+              echo "🏗️  This will take ~8-10 minutes (one-time cost)"
+              
+              # Build and push base image
+              docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+              docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+              docker push ${ECR_URI}/unfurl-base:latest
+              
+              echo "✅ Base image built and pushed - next deployment will be FAST"
+              echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
+              
+              # Use standard Dockerfile for this deployment
+              echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+            fi
+          else
+            echo "📦 Creating ECR repository for fast deployment base image..."
+            aws ecr create-repository --repository-name unfurl-base --region ${{ env.AWS_REGION }}
+            
+            echo "🏗️  Building base image (one-time setup, ~8-10 minutes)..."
+            docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+            docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+            docker push ${ECR_URI}/unfurl-base:latest
+            
+            echo "✅ Base image setup complete - next deployment will be FAST"
+            echo "⚡ Future deployments: ~2-4 minutes (70-80% faster)"
+            
+            # Use standard Dockerfile for this deployment
+            echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+          fi
+
       - name: Test Docker build
         run: |
+          echo "🏗️  Testing Docker build in $DEPLOYMENT_MODE mode..."
+          
+          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
+            echo "⚡ FAST DEPLOYMENT MODE: Using pre-built base image"
+            echo "📦 Base image: $BASE_IMAGE_URI"
+            echo "⏱️  Expected build time: ~2-4 minutes"
+          else
+            echo "🛠️  STANDARD DEPLOYMENT MODE: Self-contained build"
+            echo "⏱️  Expected build time: ~12-15 minutes"
+          fi
+          
           # Test the Dockerfile builds correctly and tag for potential reuse
           docker buildx build --platform linux/arm64 -t unfurl-service:latest . --load
           echo "✅ Docker build successful"
           
           # Save build info for CDK optimization
           docker image ls unfurl-service:latest --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
+          
+          # Report deployment mode used
+          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
+            echo "🚀 FAST DEPLOYMENT: Ready for lightning-fast CDK deployment!"
+          else
+            echo "✅ STANDARD DEPLOYMENT: Ready for reliable CDK deployment"
+            echo "💡 Next deployment will use fast mode automatically"
+          fi
 
       - name: Build Lambda layer
         run: |
