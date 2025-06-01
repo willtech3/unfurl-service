@@ -19,7 +19,7 @@ RUN dnf update -y && \
         libXdamage \
         libXrandr \
         mesa-libgbm \
-        libXss \
+        libXScrnSaver \
         alsa-lib && \
     dnf clean all && \
     rm -rf /var/cache/dnf
