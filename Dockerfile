@@ -5,25 +5,27 @@
 FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
 
 # Install system dependencies for Playwright
-RUN dnf update -y && \
-    dnf install -y \
-        wget \
-        ca-certificates \
-        xorg-x11-server-Xvfb \
-        nss \
-        atk \
-        at-spi2-atk \
-        gtk3 \
-        libdrm \
-        libXcomposite \
-        libXdamage \
-        libXrandr \
-        mesa-libgbm \
-        libXScrnSaver \
-        alsa-lib \
-        binutils && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+RUN for i in 1 2 3; do \
+        dnf update -y && \
+        dnf install -y \
+            wget \
+            ca-certificates \
+            xorg-x11-server-Xvfb \
+            nss \
+            atk \
+            gtk3 \
+            libdrm \
+            libXcomposite \
+            libXdamage \
+            libXrandr \
+            mesa-libgbm \
+            alsa-lib \
+            binutils \
+            findutils && \
+        dnf clean all && \
+        rm -rf /var/cache/dnf && \
+        break || sleep 5; \
+    done
 
 # Install core Python dependencies first (layer caching optimization)
 COPY requirements-docker.txt /tmp/
