@@ -302,9 +302,11 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             try:
                 # Rotate user agent on retries
                 if attempt > 0:
-                    session.headers["User-Agent"] = random.choice(user_agents)
+                    session.headers["User-Agent"] = random.choice(
+                        user_agents
+                    )  # nosec B311
                     logger.debug(f"Retry {attempt} with new user agent")
-                    time.sleep(random.uniform(2.0, 4.0))  # Longer delay on retries
+                    time.sleep(random.uniform(2.0, 4.0))  # nosec B311
 
                 # Make the main request with enhanced error handling
                 response = session.get(
@@ -319,7 +321,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 if response.status_code == 429:  # Rate limited
                     logger.warning(f"Rate limited on attempt {attempt + 1}")
                     if attempt < max_retries - 1:
-                        time.sleep(random.uniform(5.0, 10.0))
+                        time.sleep(random.uniform(5.0, 10.0))  # nosec B311
                         continue
                 elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
                     logger.warning(
@@ -327,7 +329,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                         f"on attempt {attempt + 1}"
                     )
                     if attempt < max_retries - 1:
-                        time.sleep(random.uniform(3.0, 6.0))
+                        time.sleep(random.uniform(3.0, 6.0))  # nosec B311
                         continue
 
                 # Log response details
@@ -350,7 +352,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
                 if attempt == max_retries - 1:
                     raise  # Re-raise on final attempt
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(random.uniform(2.0, 4.0))  # nosec B311
                 continue
 
         # Enhanced response content handling with better compression support
