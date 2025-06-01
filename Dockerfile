@@ -6,14 +6,13 @@ FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
 
 # Install minimal system dependencies with better error handling
 RUN dnf update -y && \
-    dnf install -y wget ca-certificates && \
+    dnf install -y wget ca-certificates findutils && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
 # Install core Python dependencies first (layer caching optimization)
 COPY requirements-docker.txt /tmp/
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
-    $(grep -E '^(aws-lambda-powertools|boto3|slack-sdk|requests|beautifulsoup4|lxml)' /tmp/requirements-docker.txt)
+RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
 # Install Playwright and browser binaries
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 playwright-stealth==1.0.6
@@ -34,10 +33,7 @@ FROM public.ecr.aws/lambda/python:3.12-arm64 AS final
 # Copy Playwright and core dependencies from previous stage
 COPY --from=playwright-base ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
-# Install remaining dependencies for performance
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
-    uvloop==0.19.0 \
-    httpx==0.26.0
+# No remaining dependencies to install
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
