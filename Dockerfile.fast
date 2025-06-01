@@ -2,18 +2,15 @@
 # Build base once: docker build -f Dockerfile.base -t {ECR_URI}/unfurl-base:latest .
 ARG BASE_IMAGE_URI
 
-# Stage 1: Use standard Python image for dependency installation
-FROM public.ecr.aws/lambda/python:3.12-arm64 as builder
-
-# Install dependencies in a clean environment
-COPY requirements-docker.txt /tmp/
-RUN pip install --no-cache-dir --target /tmp/dependencies -r /tmp/requirements-docker.txt
-
-# Stage 2: Use pre-built base image and copy dependencies
+# Use pre-built base image
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
-# Copy pre-installed dependencies from builder stage
-COPY --from=builder /tmp/dependencies/ ${LAMBDA_TASK_ROOT}/
+# Copy dependency installation files
+COPY requirements-docker.txt /tmp/requirements-docker.txt
+COPY install_deps.py /tmp/install_deps.py
+
+# Install dependencies using Python script (bypasses shell issues)
+RUN python3 /tmp/install_deps.py
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
