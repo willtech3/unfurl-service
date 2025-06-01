@@ -460,12 +460,10 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                             and len(content_text) > 100
                             and "<" in content_text
                         ):
-                            logger.info(
-                                "✅ Requests handled brotli decompression automatically"
-                            )
+                            logger.info("✅ Requests handled brotli automatically")
                         else:
                             logger.warning(
-                                "❌ Requests automatic decompression failed or produced invalid content",
+                                "❌ Requests automatic decompression failed",
                                 extra={
                                     "content_length": (
                                         len(content_text) if content_text else 0
@@ -503,7 +501,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                     content_text = None
                             else:
                                 logger.warning(
-                                    "❌ Brotli library not available or no content",
+                                    "❌ Brotli library not available",
                                     extra={
                                         "brotli_available": BROTLI_AVAILABLE,
                                         "has_content": bool(response.content),
@@ -511,11 +509,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                 )
                                 content_text = None
 
-                            # If manual decompression failed, try decoding raw bytes as last resort
+                            # Manual decompression failed, try decoding raw bytes
                             if not content_text and response.content:
-                                logger.warning(
-                                    "🚨 Last resort: attempting to decode raw compressed bytes"
-                                )
+                                logger.warning("🚨 Last resort: decode raw bytes")
                                 content_text = response.content.decode(
                                     "utf-8", errors="replace"
                                 )
