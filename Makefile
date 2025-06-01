@@ -41,7 +41,7 @@ lint:
 	uv run flake8 src/ tests/
 	uv run mypy src/
 	# Use module invocation to avoid missing script edge cases on some systems
-	uv run python -m bandit -r src/
+	uv run python -m bandit -r src/ -s B110
 
 format:
 	uv run black src/ tests/

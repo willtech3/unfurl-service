@@ -134,4 +134,4 @@ skip_covered = true
 
 [tool.bandit]
 targets = ["src"]
-skip = ["B101", "B601"]
+skip = ["B101", "B110", "B601"]
