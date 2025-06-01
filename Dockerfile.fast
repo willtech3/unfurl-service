@@ -1,6 +1,7 @@
-# Fast deployment Dockerfile using pre-built base
-# Build base once: docker build -f Dockerfile.base -t 714944708230.dkr.ecr.us-east-2.amazonaws.com/unfurl-base:latest .
-FROM 714944708230.dkr.ecr.us-east-2.amazonaws.com/unfurl-base:latest
+# Fast deployment Dockerfile - uses pre-built base image with Playwright browsers
+# Build base once: docker build -f Dockerfile.base -t {ECR_URI}/unfurl-base:latest .
+ARG BASE_IMAGE_URI
+FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
 # Install only application-specific Python dependencies
 COPY requirements-docker.txt /tmp/

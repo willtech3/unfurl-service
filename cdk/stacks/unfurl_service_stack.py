@@ -15,7 +15,7 @@ from aws_cdk import (
     aws_ecr_assets as ecr_assets,
 )
 from constructs import Construct
-
+import os
 
 class UnfurlServiceStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -106,6 +106,21 @@ class UnfurlServiceStack(Stack):
         unfurl_topic.grant_publish(event_router)
 
         # Unfurl processor Lambda function (container-based)
+        # Build args - handle fast deployment mode with ECR base image
+        build_args = {
+            "DOCKER_BUILDKIT": "1",
+            "BUILDKIT_INLINE_CACHE": "1",  # Enable inline caching for faster rebuilds
+        }
+        
+        # Add ECR authentication for fast mode
+        deployment_mode = os.environ.get("DEPLOYMENT_MODE", "standard")
+        if deployment_mode == "fast":
+            # Pass base image URI for fast deployment
+            base_image_uri = os.environ.get("BASE_IMAGE_URI", "")
+            if base_image_uri:
+                build_args["BASE_IMAGE_URI"] = base_image_uri
+                print(f"⚡ CDK: Using fast deployment with base image: {base_image_uri}")
+        
         unfurl_processor = lambda_.Function(
             self,
             "UnfurlProcessor",
@@ -116,10 +131,7 @@ class UnfurlServiceStack(Stack):
             code=lambda_.Code.from_asset_image(
                 directory=".", 
                 platform=ecr_assets.Platform.LINUX_ARM64,
-                build_args={
-                    "DOCKER_BUILDKIT": "1",
-                    "BUILDKIT_INLINE_CACHE": "1",  # Enable inline caching for faster rebuilds
-                },
+                build_args=build_args,
                 # Exclude everything except essential files for faster upload
                 exclude=[
                     "cdk.out", "cdk-deploy-out", "node_modules", ".git", "__pycache__", 

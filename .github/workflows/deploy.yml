@@ -112,6 +112,10 @@ jobs:
           AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
           ECR_URI="${AWS_ACCOUNT}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
           
+          # Always ensure ECR authentication for potential fast mode
+          echo "🔐 Ensuring ECR authentication for all Docker operations..."
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
+          
           # Check if ECR repository exists
           if aws ecr describe-repositories --repository-names unfurl-base --region ${{ env.AWS_REGION }} &>/dev/null; then
             echo "✅ ECR repository 'unfurl-base' exists"
@@ -121,10 +125,29 @@ jobs:
               echo "✅ Base image found - enabling FAST DEPLOYMENT MODE"
               echo "⚡ Expected build time: ~2-4 minutes (vs ~12-15 minutes standard)"
               
-              # Switch to fast Dockerfile
-              cp Dockerfile.fast Dockerfile
-              echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
-              echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+              # Test base image accessibility
+              if docker pull ${ECR_URI}/unfurl-base:latest; then
+                echo "✅ Base image successfully pulled and cached"
+                
+                # Switch to fast Dockerfile
+                cp Dockerfile.fast Dockerfile
+                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
+                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+              else
+                echo "⚠️  Base image exists but not accessible - will rebuild"
+                
+                # Build and push base image
+                docker buildx build --platform linux/arm64 -f Dockerfile.base -t unfurl-base:latest . --load
+                docker tag unfurl-base:latest ${ECR_URI}/unfurl-base:latest
+                docker push ${ECR_URI}/unfurl-base:latest
+                
+                echo "✅ Base image rebuilt and pushed - enabling fast mode"
+                cp Dockerfile.fast Dockerfile
+                echo "DEPLOYMENT_MODE=fast" >> $GITHUB_ENV
+                echo "BASE_IMAGE_URI=${ECR_URI}/unfurl-base:latest" >> $GITHUB_ENV
+                echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+              fi
             else
               echo "⚠️  Base image not found - building base image for future fast deployments"
               echo "🏗️  This will take ~8-10 minutes (one-time cost)"
@@ -139,6 +162,7 @@ jobs:
               
               # Use standard Dockerfile for this deployment
               echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+              echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
             fi
           else
             echo "📦 Creating ECR repository for fast deployment base image..."
@@ -154,6 +178,7 @@ jobs:
             
             # Use standard Dockerfile for this deployment
             echo "DEPLOYMENT_MODE=standard_with_base_built" >> $GITHUB_ENV
+            echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
           fi
 
       - name: Test Docker build
@@ -229,25 +254,29 @@ jobs:
       - name: CDK Deploy
         run: |
           source .venv/bin/activate
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           
-          # Ensure ECR authentication for CDK Docker builds if using fast mode
-          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
-            echo "⚡ FAST MODE: Ensuring CDK has ECR access for base image..."
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          # Refresh ECR authentication right before CDK deploy
+          if [ ! -z "$ECR_URI" ]; then
+            echo "🔐 Refreshing ECR authentication for CDK deployment..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URI
             
-            # Test base image accessibility before CDK deploy
-            if docker pull ${BASE_IMAGE_URI} &>/dev/null; then
-              echo "✅ Base image accessible for fast deployment"
-            else
-              echo "⚠️  Base image not accessible - falling back to standard mode"
-              cp Dockerfile.original Dockerfile
-              export DEPLOYMENT_MODE="standard_fallback"
-            fi
+            # Configure Docker credential helper for CDK builds
+            mkdir -p ~/.docker
+            echo '{"credHelpers": {"'$ECR_URI'": "ecr-login"}}' > ~/.docker/config.json
           fi
           
-          echo "🚀 Starting CDK deployment in $DEPLOYMENT_MODE mode..."
+          # Report deployment mode
+          if [ "$DEPLOYMENT_MODE" = "fast" ]; then
+            echo "⚡ FAST MODE: Starting CDK deployment (~2-4 minutes)"
+            echo "📦 Using base image: $BASE_IMAGE_URI"
+          else
+            echo "🐌 STANDARD MODE: Starting CDK deployment (~12-15 minutes)"
+          fi
+          
+          echo "🚀 CDK Deploy starting..."
           cdk deploy --qualifier $CDK_QUALIFIER -c bootstrapQualifier=$CDK_QUALIFIER -c "@aws-cdk/core:bootstrapQualifier=$CDK_QUALIFIER" --all --require-approval never --no-previous-parameters --verbose
         env:
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
           CDK_QUALIFIER: ${{ env.CDK_QUALIFIER }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          AWS_REGION: ${{ env.AWS_REGION }}
