@@ -1,0 +1,81 @@
+# Docker ignore file for CDK Lambda container builds
+# Exclude unnecessary files to speed up build context transfer
+
+# Development files
+.git
+.github
+.vscode
+.pytest_cache
+.mypy_cache
+.coverage
+*.log
+.DS_Store
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# CDK
+cdk.out/
+node_modules/
+*.js.map
+*.d.ts
+
+# Tests and documentation
+tests/
+docs/
+*.md
+!README.md
+
+# IDE
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# AWS
+.aws/
+
+# Scripts not needed in container
+scripts/
+requirements-dev.txt
+
+# Only include essential files for Lambda container
+!src/
+!requirements-docker.txt
+!pyproject.toml

@@ -4,28 +4,19 @@
 # Stage 1: Playwright browser installation
 FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
 
-# Install system dependencies for Playwright
+# Install minimal system dependencies for Playwright (CDK-compatible packages only)
 RUN for i in 1 2 3; do \
         dnf update -y && \
         dnf install -y \
             wget \
             ca-certificates \
-            xorg-x11-server-Xvfb \
             nss \
-            atk \
-            gtk3 \
-            libdrm \
-            libXcomposite \
-            libXdamage \
-            libXrandr \
-            mesa-libgbm \
-            alsa-lib \
             binutils \
             findutils && \
         dnf clean all && \
         rm -rf /var/cache/dnf && \
-        break || sleep 5; \
-    done
+        break || { echo "Attempt $i failed, retrying..." && sleep 5; }; \
+    done || { echo "All dnf install attempts failed" && exit 1; }
 
 # Install core Python dependencies first (layer caching optimization)
 COPY requirements-docker.txt /tmp/
@@ -35,13 +26,11 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
 # Install Playwright and browser binaries
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 playwright-stealth==1.0.6
 
-# Install Playwright browsers with optimizations (cache-bust v2)
+# Install Playwright browsers with optimizations (cache-bust v3)
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
+    python -m playwright install chromium --with-deps 2>/dev/null || \
     python -m playwright install chromium
-
-# Install binutils and findutils for binary optimization
-RUN dnf install -y binutils findutils && dnf clean all
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \

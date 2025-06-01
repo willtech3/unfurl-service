@@ -62,6 +62,13 @@
     "@aws-cdk/aws-rds:preventRenderingDeprecatedCredentials": true,
     "@aws-cdk/aws-codepipeline-actions:useNewDefaultBranchForCodeCommitSource": true,
     "@aws-cdk/core:bootstrapQualifier": "unfurl",
-    "bootstrapQualifier": "unfurl"
+    "bootstrapQualifier": "unfurl",
+    "@aws-cdk/aws-codebuild:defaultGitCloneDepth": 1,
+    "@aws-cdk/aws-stepfunctions-tasks:enableLoggingPolicyOptOut": true,
+    "@aws-cdk/app-delivery:enableCrossAccountDeployments": true,
+    "aws-cdk:enableDiffNoFail": true,
+    "@aws-cdk/aws-lambda:architectureAware": true,
+    "@aws-cdk/aws-ecr-assets:dockerIgnoreSupport": true,
+    "@aws-cdk/aws-ecr-assets:dockerBuildCaching": true
   }
 }

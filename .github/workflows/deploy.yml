@@ -106,9 +106,12 @@ jobs:
 
       - name: Test Docker build
         run: |
-          # Test the Dockerfile builds correctly
-          docker buildx build --platform linux/arm64 -t unfurl-test:latest . --load
+          # Test the Dockerfile builds correctly and tag for potential reuse
+          docker buildx build --platform linux/arm64 -t unfurl-service:latest . --load
           echo "✅ Docker build successful"
+          
+          # Save build info for CDK optimization
+          docker image ls unfurl-service:latest --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
 
       - name: Build Lambda layer
         run: |
