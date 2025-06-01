@@ -1,7 +1,7 @@
 import json
 import os
-import random
 import re
+import secrets
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -258,7 +258,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
             # Enhanced headers for bot evasion with more realistic browser simulation
             headers = {
-                "User-Agent": random.choice(USER_AGENTS),
+                "User-Agent": secrets.choice(USER_AGENTS),
                 "Accept": (
                     "text/html,application/xhtml+xml,application/xml;q=0.9,"
                     "image/avif,image/webp,image/apng,*/*;q=0.8,"
@@ -299,14 +299,14 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             proxies = {}
             if PROXY_LIST:
                 proxies = {
-                    "http": random.choice(PROXY_LIST),  # nosec B311
-                    "https": random.choice(PROXY_LIST),  # nosec B311
+                    "http": secrets.choice(PROXY_LIST),  # nosec B311
+                    "https": secrets.choice(PROXY_LIST),  # nosec B311
                 }
 
             # Step 1: Visit Instagram homepage first to get initial cookies
             # (simulate real browsing)
             logger.debug("Visiting Instagram homepage to establish session")
-            time.sleep(random.uniform(0.3, 0.8))  # nosec B311
+            time.sleep(secrets.randbelow(6) + 1)  # nosec B311
 
             try:
                 homepage_response = session.get(
@@ -320,7 +320,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 logger.debug(f"Homepage visit failed (continuing anyway): {e}")
 
             # Step 2: Add random delay to appear more human-like
-            time.sleep(random.uniform(1.0, 2.5))  # nosec B311
+            time.sleep(secrets.randbelow(16) + 2)  # nosec B311
 
             # Step 3: Update headers for the actual post request
             session.headers.update(
@@ -338,11 +338,11 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 try:
                     # Rotate user agent on retries
                     if attempt > 0:
-                        session.headers["User-Agent"] = random.choice(
+                        session.headers["User-Agent"] = secrets.choice(
                             USER_AGENTS
                         )  # nosec B311
                         logger.debug(f"Retry {attempt} with new user agent")
-                        time.sleep(random.uniform(2.0, 4.0))  # nosec B311
+                        time.sleep(secrets.randbelow(8) + 2)  # nosec B311
 
                     # Make the main request with enhanced error handling
                     response = session.get(
@@ -357,7 +357,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     if response.status_code == 429:  # Rate limited
                         logger.warning(f"Rate limited on attempt {attempt + 1}")
                         if attempt < max_retries - 1:
-                            time.sleep(random.uniform(5.0, 10.0))  # nosec B311
+                            time.sleep(secrets.randbelow(10) + 5)  # nosec B311
                             continue
                     elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
                         logger.warning(
@@ -365,7 +365,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                             f"on attempt {attempt + 1}"
                         )
                         if attempt < max_retries - 1:
-                            time.sleep(random.uniform(3.0, 6.0))  # nosec B311
+                            time.sleep(secrets.randbelow(6) + 3)  # nosec B311
                             continue
 
                     # Log response details
@@ -390,7 +390,7 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
                     if attempt == max_retries - 1:
                         raise  # Re-raise on final attempt
-                    time.sleep(random.uniform(2.0, 4.0))  # nosec B311
+                    time.sleep(secrets.randbelow(4) + 2)  # nosec B311
                     continue
 
             # Check content encoding for decompression handling
@@ -677,7 +677,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
             }
 
             # Add delay for more human-like behavior
-            time.sleep(random.uniform(0.2, 0.6))  # nosec B311
+            time.sleep(secrets.randbelow(6) + 1)  # nosec B311
 
             resp = session.get(graph_endpoint, params=params, timeout=15)
 
@@ -725,7 +725,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
         params = {"url": url, "omitscript": "true"}
 
         # Add another delay
-        time.sleep(random.uniform(0.3, 0.8))  # nosec B311
+        time.sleep(secrets.randbelow(8) + 2)  # nosec B311
 
         resp = session.get(legacy_endpoint, params=params, timeout=15)
 
