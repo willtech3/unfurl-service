@@ -177,358 +177,447 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
         if cached_data:
             return cached_data
 
-        # Create session for cookie persistence and better bot evasion
-        session = requests.Session()
+        data = None
 
-        # More sophisticated user agents with recent versions + mobile variants
-        user_agents = [
-            # Desktop Chrome variants
-            (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            (
-                "Mozilla/5.0 (X11; Linux x86_64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            # Edge
-            (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
-            ),
-            # Safari
-            (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.2 Safari/605.1.15"
-            ),
-            # Mobile variants - often bypass bot detection better
-            (
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Mobile/15E148 Safari/604.1"
-            ),
-            ("Mozilla/5.0 (Android 14; Mobile; rv:120.0) " "Gecko/120.0 Firefox/120.0"),
-            (
-                "Mozilla/5.0 (Linux; Android 14; SM-G991B) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Mobile Safari/537.36"
-            ),
-            (
-                "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Mobile/15E148 Safari/604.1"
-            ),
-        ]
+        # Step 1: Try Playwright browser automation FIRST (most effective)
+        if PLAYWRIGHT_AVAILABLE:
+            logger.info(
+                "Attempting browser automation (Playwright) as primary method",
+                extra={"url": canonical_url},
+            )
+            try:
+                data = fetch_instagram_data_with_browser(canonical_url)
+                if data:
+                    logger.info("✅ Playwright browser automation succeeded")
+            except Exception as e:
+                logger.warning(f"Playwright automation failed: {e}")
 
-        # Enhanced headers with more realistic browser behavior
-        base_headers = {
-            "User-Agent": random.choice(user_agents),  # nosec B311
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                "image/avif,image/webp,image/apng,*/*;q=0.8,"
-                "application/signed-exchange;v=b3;q=0.7"
-            ),
-            "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "DNT": "1",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Cache-Control": "max-age=0",
-            "Sec-CH-UA": (
-                '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
-            ),
-            "Sec-CH-UA-Mobile": "?0",
-            "Sec-CH-UA-Platform": '"Windows"',
-            "Pragma": "no-cache",
-        }
+        # Step 2: Fallback to HTTP scraping if Playwright failed
+        if not data:
+            logger.info(
+                "Browser automation failed/unavailable, attempting HTTP scraping",
+                extra={"url": canonical_url},
+            )
 
-        # Add referer for more realistic browsing pattern
-        if "instagram.com" in canonical_url:
-            base_headers["Referer"] = "https://www.instagram.com/"
+            # Create session for cookie persistence and better bot evasion
+            session = requests.Session()
 
-        # Set up session headers
-        session.headers.update(base_headers)
+            # More sophisticated user agents with recent versions + mobile variants
+            user_agents = [
+                # Desktop Chrome variants
+                (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                (
+                    "Mozilla/5.0 (X11; Linux x86_64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                # Edge
+                (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
+                ),
+                # Safari
+                (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/17.2 Safari/605.1.15"
+                ),
+                # Mobile variants - often bypass bot detection better
+                (
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/17.0 Mobile/15E148 Safari/604.1"
+                ),
+                (
+                    "Mozilla/5.0 (Android 14; Mobile; rv:120.0) "
+                    "Gecko/120.0 Firefox/120.0"
+                ),
+                (
+                    "Mozilla/5.0 (Linux; Android 14; SM-G991B) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Mobile Safari/537.36"
+                ),
+                (
+                    "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/17.0 Mobile/15E148 Safari/604.1"
+                ),
+            ]
 
-        # Configure proxies if available
-        proxies = {}
-        if PROXY_LIST:
-            proxies = {
-                "http": random.choice(PROXY_LIST),  # nosec B311
-                "https": random.choice(PROXY_LIST),  # nosec B311
+            # Enhanced headers with more realistic browser behavior
+            base_headers = {
+                "User-Agent": random.choice(user_agents),  # nosec B311
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                    "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                    "application/signed-exchange;v=b3;q=0.7"
+                ),
+                "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "DNT": "1",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
+                "Sec-CH-UA": (
+                    '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"'
+                ),
+                "Sec-CH-UA-Mobile": "?0",
+                "Sec-CH-UA-Platform": '"Windows"',
+                "Pragma": "no-cache",
             }
 
-        # Step 1: Visit Instagram homepage first to get initial cookies
-        # (simulate real browsing)
-        logger.debug("Visiting Instagram homepage to establish session")
-        time.sleep(random.uniform(0.3, 0.8))  # nosec B311
+            # Add referer for more realistic browsing pattern
+            if "instagram.com" in canonical_url:
+                base_headers["Referer"] = "https://www.instagram.com/"
 
-        try:
-            homepage_response = session.get(
-                "https://www.instagram.com/",
-                proxies=proxies,
-                timeout=10,
-                allow_redirects=True,
-            )
-            logger.debug(f"Homepage visit status: {homepage_response.status_code}")
-        except Exception as e:
-            logger.debug(f"Homepage visit failed (continuing anyway): {e}")
+            # Set up session headers
+            session.headers.update(base_headers)
 
-        # Step 2: Add random delay to appear more human-like
-        time.sleep(random.uniform(1.0, 2.5))  # nosec B311
+            # Configure proxies if available
+            proxies = {}
+            if PROXY_LIST:
+                proxies = {
+                    "http": random.choice(PROXY_LIST),  # nosec B311
+                    "https": random.choice(PROXY_LIST),  # nosec B311
+                }
 
-        # Step 3: Update headers for the actual post request
-        session.headers.update(
-            {"Referer": "https://www.instagram.com/", "Sec-Fetch-Site": "same-origin"}
-        )
+            # Step 1: Visit Instagram homepage first to get initial cookies
+            # (simulate real browsing)
+            logger.debug("Visiting Instagram homepage to establish session")
+            time.sleep(random.uniform(0.3, 0.8))  # nosec B311
 
-        logger.debug("Making request to Instagram", extra={"url": canonical_url})
-
-        # Enhanced retry logic for bot detection bypass
-        max_retries = 3
-        for attempt in range(max_retries):
             try:
-                # Rotate user agent on retries
-                if attempt > 0:
-                    session.headers["User-Agent"] = random.choice(
-                        user_agents
-                    )  # nosec B311
-                    logger.debug(f"Retry {attempt} with new user agent")
-                    time.sleep(random.uniform(2.0, 4.0))  # nosec B311
-
-                # Make the main request with enhanced error handling
-                response = session.get(
-                    canonical_url,
+                homepage_response = session.get(
+                    "https://www.instagram.com/",
                     proxies=proxies,
-                    timeout=15,
+                    timeout=10,
                     allow_redirects=True,
-                    stream=False,  # Ensure full response is loaded
                 )
+                logger.debug(f"Homepage visit status: {homepage_response.status_code}")
+            except Exception as e:
+                logger.debug(f"Homepage visit failed (continuing anyway): {e}")
 
-                # Check if we got blocked (common Instagram bot responses)
-                if response.status_code == 429:  # Rate limited
-                    logger.warning(f"Rate limited on attempt {attempt + 1}")
-                    if attempt < max_retries - 1:
-                        time.sleep(random.uniform(5.0, 10.0))  # nosec B311
-                        continue
-                elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
-                    logger.warning(
-                        f"Bot detection suspected (status {response.status_code}) "
-                        f"on attempt {attempt + 1}"
+            # Step 2: Add random delay to appear more human-like
+            time.sleep(random.uniform(1.0, 2.5))  # nosec B311
+
+            # Step 3: Update headers for the actual post request
+            session.headers.update(
+                {
+                    "Referer": "https://www.instagram.com/",
+                    "Sec-Fetch-Site": "same-origin",
+                }
+            )
+
+            logger.debug("Making request to Instagram", extra={"url": canonical_url})
+
+            # Enhanced retry logic for bot detection bypass
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Rotate user agent on retries
+                    if attempt > 0:
+                        session.headers["User-Agent"] = random.choice(
+                            user_agents
+                        )  # nosec B311
+                        logger.debug(f"Retry {attempt} with new user agent")
+                        time.sleep(random.uniform(2.0, 4.0))  # nosec B311
+
+                    # Make the main request with enhanced error handling
+                    response = session.get(
+                        canonical_url,
+                        proxies=proxies,
+                        timeout=15,
+                        allow_redirects=True,
+                        stream=False,  # Ensure full response is loaded
                     )
-                    if attempt < max_retries - 1:
-                        time.sleep(random.uniform(3.0, 6.0))  # nosec B311
-                        continue
 
-                # Log response details
-                logger.info(
-                    "Fetched Instagram page",
+                    # Check if we got blocked (common Instagram bot responses)
+                    if response.status_code == 429:  # Rate limited
+                        logger.warning(f"Rate limited on attempt {attempt + 1}")
+                        if attempt < max_retries - 1:
+                            time.sleep(random.uniform(5.0, 10.0))  # nosec B311
+                            continue
+                    elif response.status_code in [403, 406]:  # Forbidden/Not Acceptable
+                        logger.warning(
+                            f"Bot detection suspected (status {response.status_code}) "
+                            f"on attempt {attempt + 1}"
+                        )
+                        if attempt < max_retries - 1:
+                            time.sleep(random.uniform(3.0, 6.0))  # nosec B311
+                            continue
+
+                    # Log response details
+                    logger.info(
+                        "Fetched Instagram page",
+                        extra={
+                            "status_code": response.status_code,
+                            "content_type": response.headers.get("content-type"),
+                            "content_length": response.headers.get("content-length"),
+                            "content_encoding": response.headers.get(
+                                "content-encoding"
+                            ),
+                            "url": canonical_url,
+                            "attempt": attempt + 1,
+                        },
+                    )
+
+                    # If we made it here, break the retry loop
+                    break
+
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
+                    if attempt == max_retries - 1:
+                        raise  # Re-raise on final attempt
+                    time.sleep(random.uniform(2.0, 4.0))  # nosec B311
+                    continue
+
+            # Enhanced response content handling with better compression support
+            try:
+                # Handle different content encodings properly
+                content_encoding = response.headers.get("content-encoding", "").lower()
+                content_type = response.headers.get("content-type", "").lower()
+
+                logger.debug(
+                    "Response encoding details",
                     extra={
-                        "status_code": response.status_code,
-                        "content_type": response.headers.get("content-type"),
-                        "content_length": response.headers.get("content-length"),
-                        "content_encoding": response.headers.get("content-encoding"),
-                        "url": canonical_url,
-                        "attempt": attempt + 1,
+                        "content_encoding": content_encoding,
+                        "content_type": content_type,
+                        "response_size": len(response.content)
+                        if response.content
+                        else 0,
+                        "apparent_encoding": response.apparent_encoding,
                     },
                 )
 
-                # If we made it here, break the retry loop
-                break
+                # For brotli compression, let requests handle it automatically
+                if content_encoding in ["br", "brotli"]:
+                    # requests should handle brotli automatically if library available
+                    try:
+                        content_text = response.text
+                        if not content_text and response.content:
+                            # Manual brotli decompression as fallback
+                            import brotli
 
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
-                if attempt == max_retries - 1:
-                    raise  # Re-raise on final attempt
-                time.sleep(random.uniform(2.0, 4.0))  # nosec B311
-                continue
-
-        # Enhanced response content handling with better compression support
-        try:
-            # Handle different content encodings properly
-            content_encoding = response.headers.get("content-encoding", "").lower()
-            content_type = response.headers.get("content-type", "").lower()
-
-            logger.debug(
-                "Response encoding details",
-                extra={
-                    "content_encoding": content_encoding,
-                    "content_type": content_type,
-                    "response_size": len(response.content) if response.content else 0,
-                    "apparent_encoding": response.apparent_encoding,
-                },
-            )
-
-            # For brotli compression, let requests handle it automatically
-            if content_encoding in ["br", "brotli"]:
-                # requests should handle brotli automatically if library available
-                try:
+                            decompressed = brotli.decompress(response.content)
+                            content_text = decompressed.decode(
+                                "utf-8", errors="replace"
+                            )
+                            logger.debug("Manual brotli decompression successful")
+                    except ImportError:
+                        logger.warning(
+                            "Brotli library not available for manual decompression"
+                        )
+                        # Try to decode as raw bytes
+                        content_text = response.content.decode(
+                            "utf-8", errors="replace"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Brotli decompression failed: {e}")
+                        content_text = response.content.decode(
+                            "utf-8", errors="replace"
+                        )
+                elif content_encoding in ["gzip", "deflate"]:
+                    # These should be handled automatically by requests
+                    response.encoding = response.apparent_encoding or "utf-8"
                     content_text = response.text
-                    if not content_text and response.content:
-                        # Manual brotli decompression as fallback
-                        import brotli
+                else:
+                    # No special encoding or unknown encoding
+                    response.encoding = response.apparent_encoding or "utf-8"
+                    content_text = response.text
 
-                        decompressed = brotli.decompress(response.content)
-                        content_text = decompressed.decode("utf-8", errors="replace")
-                        logger.debug("Manual brotli decompression successful")
-                except ImportError:
-                    logger.warning(
-                        "Brotli library not available for manual decompression"
-                    )
-                    # Try to decode as raw bytes
-                    content_text = response.content.decode("utf-8", errors="replace")
-                except Exception as e:
-                    logger.warning(f"Brotli decompression failed: {e}")
-                    content_text = response.content.decode("utf-8", errors="replace")
-            elif content_encoding in ["gzip", "deflate"]:
-                # These should be handled automatically by requests
-                response.encoding = response.apparent_encoding or "utf-8"
-                content_text = response.text
-            else:
-                # No special encoding or unknown encoding
-                response.encoding = response.apparent_encoding or "utf-8"
-                content_text = response.text
+                # Enhanced content validation - be more lenient with compressed content
+                if not content_text or len(content_text.strip()) == 0:
+                    logger.warning("Received empty response content")
+                    return None
 
-            # Enhanced content validation - be more lenient with compressed content
-            if not content_text or len(content_text.strip()) == 0:
-                logger.warning("Received empty response content")
-                return None
+                # More sophisticated binary content detection
+                # Don't flag as binary if it's just compression artifacts
+                if content_text.startswith("\x00"):
+                    logger.warning("Received null-prefixed content, likely binary")
+                    return None
 
-            # More sophisticated binary content detection
-            # Don't flag as binary if it's just compression artifacts
-            if content_text.startswith("\x00"):
-                logger.warning("Received null-prefixed content, likely binary")
-                return None
-
-            # Check for excessive unicode replacement characters (indicates corruption)
-            replacement_char_ratio = (
-                content_text.count("\ufffd") / len(content_text) if content_text else 1
-            )
-            if replacement_char_ratio > 0.6:  # More than 60% replacement chars
-                logger.warning(
-                    f"High replacement character ratio "
-                    f"({replacement_char_ratio:.2%}), "
-                    "likely corrupted"
+                # Check for excessive unicode replacement characters (indicates corruption)
+                replacement_char_ratio = (
+                    content_text.count("\ufffd") / len(content_text)
+                    if content_text
+                    else 1
                 )
-                return None
+                if replacement_char_ratio > 0.6:  # More than 60% replacement chars
+                    logger.warning(
+                        f"High replacement character ratio "
+                        f"({replacement_char_ratio:.2%}), "
+                        "likely corrupted"
+                    )
+                    return None
 
-            # Check if content looks like HTML (even if compressed artifacts exist)
-            html_indicators = ["<html", "<head", "<meta", "<title", "<!doctype"]
-            has_html_structure = any(
-                indicator in content_text.lower() for indicator in html_indicators
-            )
-
-            if not has_html_structure and len(content_text) > 100:
-                # Only flag as non-HTML if substantial content without HTML structure
-                logger.warning("Content doesn't appear to be HTML")
-                return None
-
-            response.raise_for_status()
-
-            # Enhanced content debugging
-            logger.debug(
-                "Instagram page content analysis",
-                extra={
-                    "url": canonical_url,
-                    "content_snippet": (
-                        content_text[:300] if content_text else "No content"
-                    ),
-                    "contains_meta_tags": '<meta property="og:' in content_text,
-                    "contains_json_ld": "application/ld+json" in content_text,
-                    "contains_html": "<html" in content_text.lower(),
-                    "title_tag": (
-                        content_text[
-                            content_text.find("<title") : content_text.find("</title>")
-                            + 8
-                        ]
-                        if "<title" in content_text
-                        else "No title found"
-                    ),
-                },
-            )
-
-            # Parse the HTML
-            soup = BeautifulSoup(content_text, "html.parser")
-
-            # Extract data from meta tags and scripts
-            data = extract_instagram_data(soup, url)
-
-            # Enhanced debugging for extraction failures
-            if not data:
-                # Get all meta tags for debugging
-                all_meta_tags = [
-                    {
-                        "property": tag.get("property", ""),
-                        "name": tag.get("name", ""),
-                        "content": tag.get("content", "")[:100],  # Truncate for logging
-                    }
-                    for tag in soup.find_all("meta")
-                    if tag.get("property") or tag.get("name")
+                # Check if content looks like HTML (even if compressed artifacts exist)
+                html_indicators = [
+                    "<html",
+                    "<head",
+                    "<meta",
+                    "<title",
+                    "<!doctype",
+                    "<script",
+                    "<div",
+                ]
+                instagram_indicators = [
+                    'property="og:',
+                    'content="Instagram',
+                    "application/ld+json",
+                    "window._sharedData",
+                    '"@type":"VideoObject"',
+                    '"@type":"ImageObject"',
+                    "instagram.com",
                 ]
 
-                logger.warning(
-                    "HTML scrape yielded no data - debugging extraction",
+                has_html_structure = any(
+                    indicator in content_text.lower() for indicator in html_indicators
+                )
+                has_instagram_content = any(
+                    indicator in content_text for indicator in instagram_indicators
+                )
+
+                # Be more lenient - accept if either HTML structure OR Instagram content detected
+                if (
+                    not has_html_structure
+                    and not has_instagram_content
+                    and len(content_text) > 100
+                ):
+                    logger.warning(
+                        "Content doesn't appear to be HTML or Instagram content",
+                        extra={
+                            "content_preview": content_text[:200],
+                            "content_length": len(content_text),
+                        },
+                    )
+                    return None
+
+                response.raise_for_status()
+
+                # Enhanced content debugging
+                logger.debug(
+                    "Instagram page content analysis",
                     extra={
-                        "url": url,
-                        "meta_og_image": bool(soup.find("meta", property="og:image")),
-                        "meta_og_description": bool(
-                            soup.find("meta", property="og:description")
+                        "url": canonical_url,
+                        "content_snippet": (
+                            content_text[:300] if content_text else "No content"
                         ),
-                        "meta_og_title": bool(soup.find("meta", property="og:title")),
-                        "json_ld_scripts": len(
-                            soup.find_all("script", type="application/ld+json")
+                        "has_html_structure": has_html_structure,
+                        "has_instagram_content": has_instagram_content,
+                        "content_length": len(content_text),
+                        "replacement_char_ratio": replacement_char_ratio,
+                        "contains_meta_tags": '<meta property="og:' in content_text,
+                        "contains_json_ld": "application/ld+json" in content_text,
+                        "contains_html": "<html" in content_text.lower(),
+                        "title_tag": (
+                            content_text[
+                                content_text.find("<title") : content_text.find(
+                                    "</title>"
+                                )
+                                + 8
+                            ]
+                            if "<title" in content_text
+                            else "No title found"
                         ),
-                        "all_meta_tags": all_meta_tags[:10],  # Limit for logging
-                        "page_title": soup.title.string if soup.title else "No title",
                     },
                 )
 
-                # Fallback to oEmbed
-                logger.warning(
-                    "HTML scrape yielded no data, attempting oEmbed fallback",
-                    extra={"url": url},
-                )
-                data = fetch_instagram_oembed(canonical_url)
+                # Parse the HTML
+                soup = BeautifulSoup(content_text, "html.parser")
 
-            # Final fallback to browser automation if available
-            if not data and PLAYWRIGHT_AVAILABLE:
-                logger.warning(
-                    "oEmbed fallback failed, attempting browser automation",
-                    extra={"url": url},
-                )
-                data = fetch_instagram_data_with_browser(canonical_url)
+                # Extract data from meta tags and scripts
+                data = extract_instagram_data(soup, url)
 
-            if data:
-                # Cache the result using canonical URL so future variants hit cache
-                cache_unfurl(canonical_url, data)
+                # Enhanced debugging for extraction failures
+                if not data:
+                    # Get all meta tags for debugging
+                    all_meta_tags = [
+                        {
+                            "property": tag.get("property", ""),
+                            "name": tag.get("name", ""),
+                            "content": tag.get("content", "")[
+                                :100
+                            ],  # Truncate for logging
+                        }
+                        for tag in soup.find_all("meta")
+                        if tag.get("property") or tag.get("name")
+                    ]
 
-                if metrics:
-                    metrics.add_metric(
-                        name="InstagramDataFetched", unit=MetricUnit.Count, value=1
+                    logger.warning(
+                        "HTML scrape yielded no data - debugging extraction",
+                        extra={
+                            "url": url,
+                            "meta_og_image": bool(
+                                soup.find("meta", property="og:image")
+                            ),
+                            "meta_og_description": bool(
+                                soup.find("meta", property="og:description")
+                            ),
+                            "meta_og_title": bool(
+                                soup.find("meta", property="og:title")
+                            ),
+                            "json_ld_scripts": len(
+                                soup.find_all("script", type="application/ld+json")
+                            ),
+                            "all_meta_tags": all_meta_tags[:10],  # Limit for logging
+                            "page_title": soup.title.string
+                            if soup.title
+                            else "No title",
+                        },
                     )
 
-            return data
+                    # Fallback to oEmbed
+                    logger.warning(
+                        "HTML scrape yielded no data, attempting oEmbed fallback",
+                        extra={"url": url},
+                    )
+                    data = fetch_instagram_oembed(canonical_url)
 
-        except UnicodeDecodeError as e:
-            logger.error(f"Failed to decode response: {e}")
-            return None
+            except UnicodeDecodeError as e:
+                logger.error(f"Failed to decode HTTP scraping response: {e}")
+
+        # Step 3: Final fallback to oEmbed if HTTP scraping failed completely
+        if not data:
+            logger.info(
+                "HTTP scraping failed, attempting oEmbed fallback",
+                extra={"url": canonical_url},
+            )
+            try:
+                data = fetch_instagram_oembed(canonical_url)
+                if data:
+                    logger.info("✅ oEmbed fallback succeeded")
+            except Exception as e:
+                logger.warning(f"oEmbed fallback failed: {e}")
+
+        # Cache and return successful result
+        if data:
+            # Cache the result using canonical URL so future variants hit cache
+            cache_unfurl(canonical_url, data)
+
+            if metrics:
+                metrics.add_metric(
+                    name="InstagramDataFetched", unit=MetricUnit.Count, value=1
+                )
+
+        return data
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL",
-            extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -718,8 +807,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data",
-            extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
         )
 
     return None
@@ -733,8 +821,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta",
-                    attrs={"name": n},
+                    "meta", attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
