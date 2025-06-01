@@ -84,7 +84,7 @@ class UnfurlServiceStack(Stack):
             self,
             "EventRouter",
             function_name=f"unfurl-event-router-{env_name}",
-            runtime=lambda_.Runtime.FROM_IMAGE,
+            runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("src/event_router"),
