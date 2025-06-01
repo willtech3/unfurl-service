@@ -416,9 +416,10 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             replacement_char_ratio = (
                 content_text.count("\ufffd") / len(content_text) if content_text else 1
             )
-            if replacement_char_ratio > 0.1:  # More than 10% replacement chars
+            if replacement_char_ratio > 0.6:  # More than 60% replacement chars
                 logger.warning(
-                    f"High replacement character ratio ({replacement_char_ratio:.2%}), "
+                    f"High replacement character ratio "
+                    f"({replacement_char_ratio:.2%}), "
                     "likely corrupted"
                 )
                 return None
