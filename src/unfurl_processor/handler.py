@@ -259,9 +259,13 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             # Enhanced headers for bot evasion with more realistic browser simulation
             headers = {
                 "User-Agent": random.choice(USER_AGENTS),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                    "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                    "application/signed-exchange;v=b3;q=0.7"
+                ),
                 "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate",  # Explicitly exclude "br" brotli
+                "Accept-Encoding": "gzip, deflate",  # Explicitly exclude brotli
                 "DNT": "1",
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1",
@@ -270,7 +274,10 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "Sec-Fetch-Site": "none",
                 "Sec-Fetch-User": "?1",
                 "Cache-Control": "max-age=0",
-                "sec-ch-ua": '"Google Chrome";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+                "sec-ch-ua": (
+                    '"Google Chrome";v="119", "Chromium";v="119", '
+                    '"Not?A_Brand";v="24"'
+                ),
                 "sec-ch-ua-mobile": "?0",
                 "sec-ch-ua-platform": '"macOS"',
                 # Add more realistic headers to avoid detection
@@ -646,9 +653,9 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
-            "Accept": "application/json, text/plain, */*",
+            "Accept": ("application/json, text/plain, */*"),
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",  # Explicitly exclude "br" brotli
+            "Accept-Encoding": "gzip, deflate",  # Explicitly exclude brotli
             "Connection": "keep-alive",
             "DNT": "1",
             "Upgrade-Insecure-Requests": "1",
@@ -787,8 +794,9 @@ def fetch_instagram_data_with_browser(url: str) -> Optional[Dict[str, Any]]:
     """
     Attempt to fetch Instagram data using browser automation.
 
-    Note: Playwright browser binaries are not available in Lambda due to size constraints.
-    This function will gracefully return None to trigger HTTP scraping fallback.
+    Note: Playwright browser binaries are not available in Lambda due to size
+    constraints. This function will gracefully return None to trigger HTTP
+    scraping fallback.
     """
     logger.warning("🤖 Browser automation not available in Lambda environment")
     logger.info("📱 Falling back to enhanced HTTP scraping with improved bot evasion")
@@ -1233,15 +1241,3 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
     except Exception as e:
         logger.error("Error extracting Instagram data", extra={"error": str(e)})
         return None
-
-
-def fetch_instagram_data_with_browser(url: str) -> Optional[Dict[str, Any]]:
-    """
-    Attempt to fetch Instagram data using browser automation.
-
-    Note: Playwright browser binaries are not available in Lambda due to size constraints.
-    This function will gracefully return None to trigger HTTP scraping fallback.
-    """
-    logger.warning("🤖 Browser automation not available in Lambda environment")
-    logger.info("📱 Falling back to enhanced HTTP scraping with improved bot evasion")
-    return None
