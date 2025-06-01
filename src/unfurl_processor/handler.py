@@ -167,6 +167,14 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
         # Extract data from meta tags and scripts
         data = extract_instagram_data(soup, url)
 
+        # Fallback to oEmbed API if scraping did not return data
+        if not data:
+            logger.warning(
+                "HTML scrape yielded no data, attempting oEmbed fallback",
+                extra={"url": url},
+            )
+            data = fetch_instagram_oembed(url)
+
         if data:
             # Cache the result
             cache_unfurl(url, data)
@@ -187,8 +195,7 @@ def fetch_instagram_data(url: str, post_id: str) -> Optional[Dict[str, Any]]:
                 name="InstagramFetchError", unit=MetricUnit.Count, value=1
             )
 
-        # Try oEmbed as fallback
-        return fetch_instagram_oembed(url)
+        return None
 
 
 def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, Any]]:
