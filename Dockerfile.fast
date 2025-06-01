@@ -5,12 +5,12 @@ ARG BASE_IMAGE_URI
 # Use pre-built base image
 FROM ${BASE_IMAGE_URI:-public.ecr.aws/lambda/python:3.12-arm64}
 
-# Copy dependency installation files
+# Copy requirements file
 COPY requirements-docker.txt /tmp/requirements-docker.txt
-COPY install_deps.py /tmp/install_deps.py
 
-# Install dependencies using Python script (bypasses shell issues)
-RUN python3 /tmp/install_deps.py
+# Install dependencies directly with platform specification
+RUN pip install --no-cache-dir --platform linux_aarch64 --target ${LAMBDA_TASK_ROOT} --only-binary=:all: -r /tmp/requirements-docker.txt || \
+    pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
