@@ -256,10 +256,12 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         if description:
             description = description.strip()
             # Regex tolerant to variations (case, pluralisation, extra text)
+            # Pattern: "123 likes, 4 comments - username on Instagram: \"caption\""
             desc_pattern = (
                 r"^(?P<likes>[\\d,.]+)\\s+likes?,\\s+"
                 r"(?P<comments>[\\d,.]+)\\s+comments?\\s+-\\s+"
-                r'(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"(?P<caption>.+)"'
+                r'(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"'
+                r'(?P<caption>.+)"'
             )
             desc_match = re.match(desc_pattern, description, flags=re.IGNORECASE)
             if desc_match:
@@ -270,7 +272,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
             else:
                 # Fallback: search for pattern "- username on <something>: \"caption\""
                 uc_pattern = (
-                    r'-\\s+(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"(?P<caption>.+)"'
+                    r'-\\s+(?P<username>[\\w.]+)\\s+on[^:]*:\\s+"' r'(?P<caption>.+)"'
                 )
                 uc_match = re.search(uc_pattern, description, flags=re.IGNORECASE)
                 if uc_match:
@@ -289,7 +291,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
                             data["username"] = simple_match.group("user")
                         data["caption"] = simple_match.group("cap")
                     else:
-                        # Last resort: just use the raw description as caption (trim period)
+                        # Last resort: raw description as caption (trim period)
                         data["caption"] = description.rstrip(" .")
 
         # Extract additional details from the title if available
