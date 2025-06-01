@@ -35,9 +35,7 @@ class UnfurlServiceStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
+            point_in_time_recovery=True,
         )
 
         # SNS topic for async processing
@@ -115,7 +113,14 @@ class UnfurlServiceStack(Stack):
             runtime=lambda_.Runtime.FROM_IMAGE,
             architecture=lambda_.Architecture.ARM_64,
             handler=lambda_.Handler.FROM_IMAGE,
-            code=lambda_.Code.from_asset_image(directory=".", platform=ecr_assets.Platform.LINUX_ARM64),
+            code=lambda_.Code.from_asset_image(
+                directory=".", 
+                platform=ecr_assets.Platform.LINUX_ARM64,
+                build_args={
+                    "DOCKER_BUILDKIT": "1",
+                },
+                exclude=["cdk.out", "node_modules", ".git", "__pycache__", "*.pyc", ".pytest_cache", ".venv"]
+            ),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
@@ -123,7 +128,7 @@ class UnfurlServiceStack(Stack):
                 "LOG_LEVEL": "INFO",
                 "POWERTOOLS_METRICS_NAMESPACE": f"UnfurlService/{env_name}",
                 "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
-                "PLAYWRIGHT_BROWSERS_PATH": "/tmp/ms-playwright",
+                "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
             },
             timeout=Duration.minutes(5),  # Increased for Playwright browser startup
             memory_size=1024,  # Increased for browser automation

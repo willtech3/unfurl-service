@@ -4,19 +4,11 @@
 # Stage 1: Playwright browser installation
 FROM public.ecr.aws/lambda/python:3.12-arm64 AS playwright-base
 
-# Install minimal system dependencies for Playwright (CDK-compatible packages only)
-RUN for i in 1 2 3; do \
-        dnf update -y && \
-        dnf install -y \
-            wget \
-            ca-certificates \
-            nss \
-            binutils \
-            findutils && \
-        dnf clean all && \
-        rm -rf /var/cache/dnf && \
-        break || { echo "Attempt $i failed, retrying..." && sleep 5; }; \
-    done || { echo "All dnf install attempts failed" && exit 1; }
+# Install minimal system dependencies with better error handling
+RUN dnf update -y && \
+    dnf install -y wget ca-certificates && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Install core Python dependencies first (layer caching optimization)
 COPY requirements-docker.txt /tmp/
@@ -26,10 +18,9 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
 # Install Playwright and browser binaries
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 playwright-stealth==1.0.6
 
-# Install Playwright browsers with optimizations (cache-bust v3)
+# Install Playwright browsers with optimizations (cache-bust v4)
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
-    python -m playwright install chromium --with-deps 2>/dev/null || \
     python -m playwright install chromium
 
 # Optimize browser binaries for Lambda
@@ -49,18 +40,7 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
     httpx==0.26.0
 
 # Copy application source code
-COPY src/ ${LAMBDA_TASK_ROOT}/src/
-
-# Performance optimizations
-ENV PYTHONPATH=${LAMBDA_TASK_ROOT}/src
-ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV AWS_LWA_ENABLE_COMPRESSION=true
-
-# Lambda runtime optimizations
-ENV AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap
-ENV _LAMBDA_TELEMETRY_LOG_FD=1
+COPY src/ ${LAMBDA_TASK_ROOT}/
 
 # Set the Lambda handler
 CMD ["unfurl_processor.entrypoint.lambda_handler"]
