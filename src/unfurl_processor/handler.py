@@ -445,9 +445,9 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                                 )
                             else:
                                 logger.warning(
-                                    "Brotli library not available or no content to decompress"
+                                    "Brotli library not available or no content"
                                 )
-                                # Try to decode as raw bytes (will likely fail content validation)
+                                # Try to decode as raw bytes
                                 content_text = response.content.decode(
                                     "utf-8", errors="replace"
                                 )
