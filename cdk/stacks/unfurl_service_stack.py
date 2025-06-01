@@ -118,8 +118,16 @@ class UnfurlServiceStack(Stack):
                 platform=ecr_assets.Platform.LINUX_ARM64,
                 build_args={
                     "DOCKER_BUILDKIT": "1",
+                    "BUILDKIT_INLINE_CACHE": "1",  # Enable inline caching for faster rebuilds
                 },
-                exclude=["cdk.out", "node_modules", ".git", "__pycache__", "*.pyc", ".pytest_cache", ".venv"]
+                # Exclude everything except essential files for faster upload
+                exclude=[
+                    "cdk.out", "cdk-deploy-out", "node_modules", ".git", "__pycache__", 
+                    "*.pyc", ".pytest_cache", ".venv", "*.md", "docs/", "tests/",
+                    ".github/", "*.log", "*.tmp", ".DS_Store", "response.json",
+                    "test-payload.json", ".dockerignore.bak", "Dockerfile.base", 
+                    "Dockerfile.fast"
+                ]
             ),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
