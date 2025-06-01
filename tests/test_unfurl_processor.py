@@ -76,7 +76,8 @@ class TestUnfurlProcessor:
             }
             mock_response.raise_for_status = MagicMock()
 
-            # Configure session.get to return different responses for different calls
+            # Configure session.get to return different responses
+            # for different calls
             def side_effect(url, **kwargs):
                 if url == "https://www.instagram.com/":
                     return mock_homepage_response
@@ -283,7 +284,8 @@ class TestUnfurlProcessor:
                             }
                             mock_response.raise_for_status = MagicMock()
 
-                            # Configure session.get to return different responses for different calls
+                            # Configure session.get to return different responses
+                            # for different calls
                             def side_effect(url, **kwargs):
                                 if url == "https://www.instagram.com/":
                                     return mock_homepage_response
@@ -365,8 +367,14 @@ class TestUnfurlProcessor:
             # Mock response for oEmbed
             mock_response = MagicMock()
             mock_response.status_code = 200
-            mock_response.text = '{"thumbnail_url": "https://example.com/thumb.jpg", "author_name": "oembed_user", "title": "oEmbed caption"}'
-            mock_response.content = b'{"thumbnail_url": "https://example.com/thumb.jpg", "author_name": "oembed_user", "title": "oEmbed caption"}'
+            mock_response.text = (
+                '{"thumbnail_url": "https://example.com/thumb.jpg", '
+                '"author_name": "oembed_user", "title": "oEmbed caption"}'
+            )
+            mock_response.content = (
+                b'{"thumbnail_url": "https://example.com/thumb.jpg", '
+                b'"author_name": "oembed_user", "title": "oEmbed caption"}'
+            )
             mock_response.headers = {
                 "content-type": "application/json",
                 "content-encoding": "none",
@@ -449,7 +457,8 @@ class TestUnfurlProcessor:
         }
         mock_response.raise_for_status = MagicMock()
 
-        # Configure session.get to return different responses for different calls
+        # Configure session.get to return different responses
+        # for different calls
         def side_effect(url, **kwargs):
             if url == "https://www.instagram.com/":
                 return mock_homepage_response
@@ -461,6 +470,7 @@ class TestUnfurlProcessor:
 
         # Reload the handler to pick up new proxy settings
         import importlib
+
         import src.unfurl_processor.handler
 
         importlib.reload(src.unfurl_processor.handler)

@@ -151,7 +151,7 @@ def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
 def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
     """
     Fetch Instagram data using advanced scraping with enhanced bot evasion.
-    
+
     Uses sophisticated techniques including:
     - Session management with persistent cookies
     - Realistic browser headers and behavior
@@ -205,7 +205,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
             "User-Agent": random.choice(user_agents),  # nosec B311
             "Accept": (
                 "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                "image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+                "image/avif,image/webp,image/apng,*/*;q=0.8,"
+                "application/signed-exchange;v=b3;q=0.7"
             ),
             "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
             "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -240,7 +241,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                 "https": random.choice(PROXY_LIST),  # nosec B311
             }
 
-        # Step 1: Visit Instagram homepage first to get initial cookies (simulate real browsing)
+        # Step 1: Visit Instagram homepage first to get initial cookies
+        # (simulate real browsing)
         logger.debug("Visiting Instagram homepage to establish session")
         time.sleep(random.uniform(0.3, 0.8))  # nosec B311
 
@@ -260,7 +262,10 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
         # Step 3: Update headers for the actual post request
         session.headers.update(
-            {"Referer": "https://www.instagram.com/", "Sec-Fetch-Site": "same-origin",}
+            {
+                "Referer": "https://www.instagram.com/",
+                "Sec-Fetch-Site": "same-origin",
+            }
         )
 
         logger.debug("Making request to Instagram", extra={"url": canonical_url})
@@ -393,7 +398,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL",
+            extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -510,9 +516,9 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                         extra={
                             "url": url,
                             "error": str(json_err),
-                            "response_snippet": resp.text[:200]
-                            if resp.text
-                            else "No content",
+                            "response_snippet": (
+                                resp.text[:200] if resp.text else "No content"
+                            ),
                         },
                     )
             else:
@@ -566,9 +572,9 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
                     extra={
                         "url": url,
                         "error": str(json_err),
-                        "response_snippet": resp.text[:200]
-                        if resp.text
-                        else "No content",
+                        "response_snippet": (
+                            resp.text[:200] if resp.text else "No content"
+                        ),
                     },
                 )
 
@@ -583,7 +589,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None
@@ -597,7 +604,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta", attrs={"name": n},
+                    "meta",
+                    attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -925,7 +933,11 @@ def create_fallback_unfurl(url: str) -> Dict[str, Any]:
 
     logger.info(
         "Created fallback unfurl data",
-        extra={"url": url, "post_id": post_id, "fallback": True,},
+        extra={
+            "url": url,
+            "post_id": post_id,
+            "fallback": True,
+        },
     )
 
     return fallback_data
