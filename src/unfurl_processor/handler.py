@@ -118,6 +118,7 @@ if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     # Lambda-specific optimizations can be added here
     pass
 
+
 def get_dynamodb_resource() -> ServiceResource:
     """Get DynamoDB resource."""
     region = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
@@ -393,9 +394,11 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
                     "content_encoding": content_encoding,
                     "response_size": len(response.content),
                     "content_type": response.headers.get("content-type", ""),
-                    "requests_text_preview": response.text[:200]
-                    if hasattr(response, "text")
-                    else "No text available",
+                    "requests_text_preview": (
+                        response.text[:200]
+                        if hasattr(response, "text")
+                        else "No text available"
+                    ),
                 },
             )
 
@@ -581,7 +584,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL",
+            extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -772,7 +776,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None
@@ -781,7 +786,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 def fetch_instagram_data_with_browser(url: str) -> Optional[Dict[str, Any]]:
     """
     Attempt to fetch Instagram data using browser automation.
-    
+
     Note: Playwright browser binaries are not available in Lambda due to size constraints.
     This function will gracefully return None to trigger HTTP scraping fallback.
     """
@@ -1069,7 +1074,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta", attrs={"name": n},
+                    "meta",
+                    attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
@@ -1232,7 +1238,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
 def fetch_instagram_data_with_browser(url: str) -> Optional[Dict[str, Any]]:
     """
     Attempt to fetch Instagram data using browser automation.
-    
+
     Note: Playwright browser binaries are not available in Lambda due to size constraints.
     This function will gracefully return None to trigger HTTP scraping fallback.
     """
