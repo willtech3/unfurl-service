@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
 # Install Playwright and browser binaries
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} playwright==1.45.0 playwright-stealth==1.0.6
 
-# Install Playwright browsers with optimizations
+# Install Playwright browsers with optimizations (cache-bust v2)
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 RUN cd ${LAMBDA_TASK_ROOT} && \
     python -m playwright install chromium
