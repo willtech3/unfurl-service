@@ -112,7 +112,7 @@ class UnfurlServiceStack(Stack):
             function_name=f"unfurl-processor-{env_name}",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            handler="handler_new.lambda_handler",
+            handler=lambda_.Handler.FROM_IMAGE,
             code=lambda_.Code.from_asset_image(directory=".", platform=ecr_assets.Platform.LINUX_ARM64),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
