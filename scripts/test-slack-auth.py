@@ -5,7 +5,7 @@ Test Slack API authentication and check OAuth scopes
 import json
 import boto3
 import requests
-from typing import Dict, Any
+from typing import Dict
 
 
 def get_slack_credentials() -> Dict[str, str]:
@@ -30,7 +30,7 @@ def test_slack_auth(bot_token: str) -> None:
         headers={"Authorization": f"Bearer {bot_token}"},
     )
 
-    print(f"\n📊 Auth Test Response:")
+    print("\n📊 Auth Test Response:")
     print(f"Status Code: {auth_response.status_code}")
 
     try:
@@ -38,7 +38,7 @@ def test_slack_auth(bot_token: str) -> None:
         print(f"Response: {json.dumps(auth_data, indent=2)}")
 
         if auth_data.get("ok"):
-            print(f"✅ Authentication successful!")
+            print("✅ Authentication successful!")
             print(f"Bot User ID: {auth_data.get('user_id')}")
             print(f"Team: {auth_data.get('team')}")
             print(f"Team ID: {auth_data.get('team_id')}")
@@ -49,7 +49,7 @@ def test_slack_auth(bot_token: str) -> None:
         print(f"Raw response: {auth_response.text}")
 
     # Test a simple API call to check scopes
-    print(f"\n🔍 Testing chat.unfurl permissions:")
+    print("\n🔍 Testing chat.unfurl permissions:")
     test_response = requests.post(
         "https://slack.com/api/chat.unfurl",
         headers={"Authorization": f"Bearer {bot_token}"},
@@ -97,7 +97,7 @@ def main():
 
     test_slack_auth(bot_token)
 
-    print(f"\n📋 Next Steps if Authentication Failed:")
+    print("\n📋 Next Steps if Authentication Failed:")
     print("1. Go to https://api.slack.com/apps")
     print("2. Select your Instagram Unfurl app")
     print("3. Go to 'OAuth & Permissions'")

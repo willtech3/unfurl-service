@@ -3,7 +3,6 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     BundlingOptions,
-    DockerImage,
     aws_lambda as lambda_,
     aws_dynamodb as dynamodb,
     aws_sns as sns,
@@ -15,7 +14,6 @@ from aws_cdk import (
     aws_ecr_assets as ecr_assets,
 )
 from constructs import Construct
-import os
 
 
 class UnfurlServiceStack(Stack):
@@ -78,10 +76,15 @@ class UnfurlServiceStack(Stack):
                         "-c",
                         " && ".join(
                             [
-                                "pip install slack-sdk boto3 aws-lambda-powertools aws-xray-sdk -t /asset-output/python/",
-                                "find /asset-output -type f -name '*.pyc' -delete",
-                                "find /asset-output -type f -name '__pycache__' -exec rm -rf {} +",
-                                "find /asset-output -type f -name '*.so' -exec strip {} +",
+                                "pip install slack-sdk boto3 "
+                                "aws-lambda-powertools aws-xray-sdk "
+                                "-t /asset-output/python/",
+                                "find /asset-output -type f -name "
+                                "'*.pyc' -delete",
+                                "find /asset-output -type f -name "
+                                "'__pycache__' -exec rm -rf {} +",
+                                "find /asset-output -type f -name "
+                                "'*.so' -exec strip {} +",
                             ]
                         ),
                     ],
@@ -130,7 +133,10 @@ class UnfurlServiceStack(Stack):
             code=lambda_.Code.from_asset_image(
                 directory=".",
                 platform=ecr_assets.Platform.LINUX_ARM64,
-                build_args={"DOCKER_BUILDKIT": "1", "BUILDKIT_INLINE_CACHE": "1",},
+                build_args={
+                    "DOCKER_BUILDKIT": "1",
+                    "BUILDKIT_INLINE_CACHE": "1",
+                },
                 # Exclude everything except essential files for faster upload
                 exclude=[
                     "cdk.out",
@@ -186,7 +192,10 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
+            sns_subs.LambdaSubscription(
+                unfurl_processor,
+                dead_letter_queue=dlq,
+            )
         )
 
         # API Gateway for Slack events
@@ -227,7 +236,8 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200", response_templates={"application/json": ""},
+                        status_code="200",
+                        response_templates={"application/json": ""},
                     )
                 ],
             ),

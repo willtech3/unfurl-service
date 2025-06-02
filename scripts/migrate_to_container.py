@@ -6,7 +6,6 @@ This script helps update the existing handler to use the new modular system
 while maintaining backward compatibility during the transition.
 """
 
-import os
 import shutil
 from pathlib import Path
 from typing import List, Tuple
@@ -90,8 +89,7 @@ This module provides backward compatibility while allowing gradual migration
 to the new modular scraper system.
 """
 
-import os
-import asyncio
+import shutil
 from typing import Dict, Any, Optional
 
 # Try to import new system, fall back to old if not available
@@ -129,7 +127,7 @@ def get_slack_formatter() -> Optional['SlackFormatter']:
 async def fetch_instagram_data_enhanced(url: str) -> Optional[Dict[str, Any]]:
     """
     Enhanced Instagram data fetching with automatic fallback.
-    
+
     Uses new modular system if available, falls back to old system.
     """
     # Try new system first if available
@@ -144,7 +142,6 @@ async def fetch_instagram_data_enhanced(url: str) -> Optional[Dict[str, Any]]:
                     return result.data
             except Exception as e:
                 print(f"New system failed, falling back to old: {e}")
-    
     # Fall back to old system
     try:
         return fetch_instagram_data_old(url)
@@ -152,15 +149,18 @@ async def fetch_instagram_data_enhanced(url: str) -> Optional[Dict[str, Any]]:
         print(f"Both systems failed: {e}")
         return None
 
-def format_unfurl_data_enhanced(data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+
+def format_unfurl_data_enhanced(
+    data: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
     """
     Enhanced unfurl formatting with automatic fallback.
-    
+
     Uses new formatter if available, falls back to old system.
     """
     if not data:
         return None
-    
+
     # Try new system first if available
     if NEW_SYSTEM_AVAILABLE:
         formatter = get_slack_formatter()
@@ -171,7 +171,7 @@ def format_unfurl_data_enhanced(data: Optional[Dict[str, Any]]) -> Optional[Dict
                     return result
             except Exception as e:
                 print(f"New formatter failed, falling back to old: {e}")
-    
+
     # Fall back to old system
     try:
         return format_unfurl_data_old(data)
@@ -309,9 +309,10 @@ def main():
         print("   git push origin main")
 
         if backups:
-            print(f"\n📦 Backups created in backup_before_migration/")
+            print("\n📦 Backups created in backup_before_migration/")
             print(
-                "   Restore if needed: cp backup_before_migration/* <original_locations>"
+                "   Restore if needed: "
+                "cp backup_before_migration/* <original_locations>"
             )
 
     except Exception as e:

@@ -11,7 +11,7 @@ import sys
 import subprocess
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple
 
 
 # Color codes for output
@@ -76,7 +76,8 @@ def check_python_version() -> bool:
         return True
     else:
         print_error(
-            f"Python {version.major}.{version.minor}.{version.micro} - Required: {required_version[0]}.{required_version[1]}+"
+            f"Python {version.major}.{version.minor}.{version.micro} - "
+            f"Required: {required_version[0]}.{required_version[1]}+"
         )
         return False
 
