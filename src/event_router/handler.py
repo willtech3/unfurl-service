@@ -94,7 +94,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     if body.get("type") == "url_verification":
         return {
             "statusCode": 200,
-            "body": body.get("challenge", ""),
+            "body": json.dumps({"challenge": body.get("challenge")}),
         }
 
     # Handle regular Slack events

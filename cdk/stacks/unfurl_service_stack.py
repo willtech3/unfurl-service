@@ -65,7 +65,7 @@ class UnfurlServiceStack(Stack):
                         "-c",
                         " && ".join(
                             [
-                                "pip install slack-sdk boto3 aws-lambda-powertools -t /asset-output/python/",
+                                "pip install slack-sdk boto3 aws-lambda-powertools aws-xray-sdk -t /asset-output/python/",
                                 "find /asset-output -type f -name '*.pyc' -delete",
                                 "find /asset-output -type f -name '__pycache__' -exec rm -rf {} +",
                                 "find /asset-output -type f -name '*.so' -exec strip {} +",
