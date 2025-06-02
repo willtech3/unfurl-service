@@ -216,9 +216,7 @@ def main_deploy() -> None:
     """Main deployment function."""
     parser = argparse.ArgumentParser(description="Deploy Instagram video proxy to AWS")
     parser.add_argument(
-        "--environment",
-        default="dev",
-        help="Deployment environment (default: dev)",
+        "--environment", default="dev", help="Deployment environment (default: dev)",
     )
 
     parser.parse_args()

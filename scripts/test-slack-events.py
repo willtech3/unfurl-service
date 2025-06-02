@@ -2,11 +2,8 @@
 """
 Test script to verify Slack app configuration is working.
 """
-import json
-import time
-from datetime import datetime, timedelta
-
 import boto3
+from datetime import datetime, timedelta
 
 
 def check_recent_events():
@@ -21,8 +18,8 @@ def check_recent_events():
         "/aws/lambda/unfurl-processor-dev-v2",
     ]
 
-    print("🔍 Checking recent Slack events...")
-    print(f"⏰ Looking for events in last 10 minutes")
+    print("🔍 Checking recent Slack events…")
+    print("⏰ Looking for events in last 10 minutes")
     print()
 
     for log_group in log_groups:
@@ -34,12 +31,16 @@ def check_recent_events():
             )
 
             events = response.get("events", [])
-            print(f"📋 {log_group}: {len(events)} Instagram events found")
+            print(
+                f"📋 {log_group}: {len(events)} Instagram events found"
+            )
 
             for event in events[-3:]:  # Show last 3 events
                 timestamp = datetime.fromtimestamp(event["timestamp"] / 1000)
                 message = event["message"].strip()
-                print(f"  {timestamp.strftime('%H:%M:%S')} - {message}")
+                print(
+                    f"  {timestamp.strftime('%H:%M:%S')} - {message}"
+                )
 
             if events:
                 print("✅ Events are being received!")
@@ -53,6 +54,7 @@ def check_recent_events():
 def check_api_gateway():
     """Check API Gateway health."""
     import requests
+    import json  # noqa: F401   # used for response.json() debugging if needed
 
     endpoint = (
         "https://kn59lllvqb.execute-api.us-east-2.amazonaws.com/prod/slack/events"
@@ -80,7 +82,8 @@ def check_api_gateway():
                 if data.get("challenge") == "test_challenge_12345":
                     print("✅ URL verification working correctly")
                     return True
-            except:
+            except Exception:
+                # Slack returned non-JSON or malformed response; ignore for this test
                 pass
 
         print("❌ URL verification not working as expected")

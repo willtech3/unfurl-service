@@ -197,6 +197,19 @@ class ScraperManager:
             richest_result.data["scraper_attempts"] = len(self.scrapers)
             richest_result.data["total_response_time_ms"] = total_time
             richest_result.data["quality_score"] = best_score
+            richest_result.data["scraper_method"] = richest_result.method
+            # Log the scraper that will supply the final unfurl
+            self.logger.info(
+                "➡️ Selected scraper %s with score %s for %s",
+                richest_result.method,
+                best_score,
+                url,
+                extra={
+                    "url": url,
+                    "chosen_scraper": richest_result.method,
+                    "quality_score": best_score,
+                },
+            )
             richest_result.data["fallback_errors"] = errors.copy()
 
             return richest_result

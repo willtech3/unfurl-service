@@ -3,9 +3,6 @@
 Check Slack app configuration for Instagram unfurl service.
 """
 import json
-import os
-from urllib.parse import urljoin
-
 import boto3
 import requests
 

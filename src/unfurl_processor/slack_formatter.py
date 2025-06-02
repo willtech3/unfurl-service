@@ -15,6 +15,14 @@ class SlackFormatter:
     def __init__(self):
         self.logger = logger
         self.video_proxy_base_url = os.environ.get("VIDEO_PROXY_BASE_URL")
+        # Warn early if proxy URL is not configured – this disables video playback
+        if not self.video_proxy_base_url:
+            self.logger.warning(
+                (
+                    "VIDEO_PROXY_BASE_URL not configured; "
+                    "Instagram videos will be static thumbnails"
+                )
+            )
 
     def format_unfurl_data(
         self, data: Optional[Dict[str, Any]]
@@ -97,7 +105,8 @@ class SlackFormatter:
                     f"Failed to create Video Block, falling back to thumbnail: {e}"
                 )
 
-        # Fallback to rich thumbnail layout
+        # We could not build a playable Video Block; fall back to rich thumbnail
+        self.logger.info("Falling back to rich thumbnail unfurl", extra={"url": url})
         return self._create_rich_block_unfurl(
             username,
             caption,
@@ -131,6 +140,12 @@ class SlackFormatter:
             # Generate video proxy URL
             encoded_video_url = urllib.parse.quote(video_url, safe="")
             video_proxy_url = f"{self.video_proxy_base_url}/video/{encoded_video_url}"
+            # Log the exact proxy URL that Slack should request. If the video service
+            # is *not* invoked you will not see corresponding CloudWatch logs.
+            self.logger.info(
+                f"Using video proxy URL for Slack playback: {video_proxy_url}",
+                extra={"video_proxy_url": video_proxy_url},
+            )
 
             blocks = []
 
