@@ -63,10 +63,10 @@ class UnfurlServiceStack(Stack):
             self, "SlackSecret", "unfurl-service/slack"
         )
 
-        # Lambda layer for shared dependencies (only for event router)
+        # Lambda layer for Event Router dependencies
         deps_layer = lambda_.LayerVersion(
             self,
-            "DepsLayer",
+            "EventRouterDeps",
             code=lambda_.Code.from_asset(
                 ".",
                 bundling=BundlingOptions(
@@ -76,14 +76,16 @@ class UnfurlServiceStack(Stack):
                         "-c",
                         " && ".join(
                             [
-                                "pip install slack-sdk boto3 "
-                                "aws-lambda-powertools aws-xray-sdk "
-                                "-t /asset-output/python/",
-                                "find /asset-output -type f -name " "'*.pyc' -delete",
-                                "find /asset-output -type f -name "
-                                "'__pycache__' -exec rm -rf {} +",
-                                "find /asset-output -type f -name "
-                                "'*.so' -exec strip {} +",
+                                "pip install --no-cache-dir --platform linux_aarch64 "
+                                "--target /asset-output/python/ --only-binary=:all: "
+                                "-r requirements-event-router.txt || "
+                                "pip install --no-cache-dir --target /asset-output/python/ "
+                                "-r requirements-event-router.txt",
+                                "find /asset-output -type f -name '*.pyc' -delete || true",
+                                "find /asset-output -type d -name '__pycache__' -exec rm -rf {} + || true",
+                                "find /asset-output -type f -name '*.so' -exec strip {} + || true",
+                                "ls -la /asset-output/python/ || true",
+                                "python -c \"import sys; sys.path.insert(0, '/asset-output/python'); import aws_xray_sdk; print('✅ aws-xray-sdk installed successfully')\" || echo '❌ aws-xray-sdk import failed'",
                             ]
                         ),
                     ],
@@ -91,7 +93,7 @@ class UnfurlServiceStack(Stack):
             ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             compatible_architectures=[lambda_.Architecture.ARM_64],
-            description="Lightweight dependencies for event router",
+            description="Event router dependencies with ARM64 support",
         )
 
         # Event router Lambda function
