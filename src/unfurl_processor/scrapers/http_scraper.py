@@ -250,17 +250,13 @@ class HttpScraper(BaseScraper):
                 "image_url": (
                     og_image.get("content")
                     if og_image
-                    else twitter_image.get("content")
-                    if twitter_image
-                    else None
+                    else twitter_image.get("content") if twitter_image else None
                 ),
                 "video_url": og_video.get("content") if og_video else None,
                 "title": (
                     og_title.get("content")
                     if og_title
-                    else twitter_title.get("content")
-                    if twitter_title
-                    else None
+                    else twitter_title.get("content") if twitter_title else None
                 ),
                 "description": (
                     og_description.get("content")
