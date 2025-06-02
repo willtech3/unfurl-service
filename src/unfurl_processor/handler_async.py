@@ -295,7 +295,9 @@ class AsyncUnfurlHandler:
         parsed = urlparse(url)
         return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-    def _extract_instagram_links(self, links: List[Dict[str, str]]) -> List[str]:
+    def _extract_instagram_links(
+        self, links: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
         """Extract and validate Instagram links from Slack event."""
         instagram_links = []
         for link in links:
@@ -306,7 +308,9 @@ class AsyncUnfurlHandler:
                 pattern in url for pattern in ["/p/", "/reel/", "/tv/"]
             ):
                 canonical_url = self._canonicalize_instagram_url(url)
-                instagram_links.append(canonical_url)
+                instagram_links.append(
+                    {"original_url": url, "canonical_url": canonical_url}
+                )
 
         return instagram_links
 
@@ -425,11 +429,13 @@ class AsyncUnfurlHandler:
 
             # Process links concurrently for better performance
             tasks = []
-            for url in instagram_links:
-                if self._is_url_being_processed(url):
-                    self.logger.info(f"Skipping URL {url} as it's being processed")
+            for link in instagram_links:
+                if self._is_url_being_processed(link["canonical_url"]):
+                    self.logger.info(
+                        f"Skipping URL {link['original_url']} as it's being processed"
+                    )
                     continue
-                task = self._process_single_link(url)
+                task = self._process_single_link(link["canonical_url"])
                 tasks.append(task)
 
             # Execute all tasks concurrently
@@ -439,14 +445,15 @@ class AsyncUnfurlHandler:
             unfurls = {}
             for i, result in enumerate(unfurl_results):
                 if isinstance(result, Exception):
+                    original_url = instagram_links[i]["original_url"]
                     self.logger.error(
-                        f"Error processing link {instagram_links[i]}: {str(result)}"
+                        f"Error processing link {original_url}: {str(result)}"
                     )
                     continue
 
                 url, unfurl_data = result
                 if unfurl_data:
-                    unfurls[url] = unfurl_data
+                    unfurls[instagram_links[i]["original_url"]] = unfurl_data
 
             # Send unfurls to Slack if any succeeded
             if unfurls:

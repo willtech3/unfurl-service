@@ -109,8 +109,14 @@ class TestAsyncUnfurlHandler:
 
         # Should only include valid Instagram post/reel/tv URLs
         expected = [
-            "https://www.instagram.com/p/ABC123/",
-            "https://www.instagram.com/reel/XYZ789/",
+            {
+                "original_url": "https://www.instagram.com/p/ABC123/",
+                "canonical_url": "https://www.instagram.com/p/ABC123/"
+            },
+            {
+                "original_url": "https://www.instagram.com/reel/XYZ789/",
+                "canonical_url": "https://www.instagram.com/reel/XYZ789/"
+            },
         ]
         assert result == expected
 
