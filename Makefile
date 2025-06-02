@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test lint format clean deploy build-layer setup ci
+.PHONY: help install install-dev test lint format clean deploy setup ci
 
 # Add uv to PATH if installed in user directory
 export PATH := $(HOME)/.local/bin:$(PATH)
@@ -12,7 +12,6 @@ help:
 	@echo "  make lint         - Run linting"
 	@echo "  make format       - Format code"
 	@echo "  make clean        - Clean up generated files"
-	@echo "  make build-layer  - Build Lambda layer"
 	@echo "  make deploy       - Deploy to AWS"
 	@echo "  make ci           - Run all quality gates"
 
@@ -56,10 +55,6 @@ clean:
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf build/ dist/ cdk.out/ lambda_layers/
 	rm -f .coverage coverage.xml
-
-build-layer:
-	chmod +x scripts/build_lambda_layer.sh
-	./scripts/build_lambda_layer.sh
 
 deploy:
 	@echo "Deploying to AWS..."
