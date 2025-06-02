@@ -189,7 +189,7 @@ class UnfurlServiceStack(Stack):
             self,
             "VideoProxy",
             function_name=f"video-proxy-{env_name}",
-            runtime=lambda_.Runtime.PYTHON_3_12,
+            runtime=lambda_.Runtime.FROM_IMAGE,
             architecture=lambda_.Architecture.ARM_64,
             handler=lambda_.Handler.FROM_IMAGE,
             code=lambda_.Code.from_asset_image(
