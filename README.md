@@ -1,10 +1,11 @@
 # Instagram Unfurl Service for Slack
 
-A high-performance, container-based serverless service that automatically unfurls Instagram links posted in Slack channels with rich media support, including video playback. Features advanced bot evasion techniques using Playwright browser automation and intelligent fallback strategies.
+A high-performance, container-based serverless service that automatically unfurls Instagram links posted in Slack channels with rich media support, including **playable video embedding**. Features advanced bot evasion techniques using Playwright browser automation and intelligent fallback strategies.
 
 ## 🚀 Key Features
 
-- **🎥 Video Unfurls**: Instagram Reels and videos play directly in Slack
+- **🎥 Playable Video Unfurls**: Instagram Reels and videos play directly in Slack using Video Block
+- **🎬 Video Proxy Service**: Secure proxy for embedding Instagram videos in Slack iframes
 - **🤖 Advanced Bot Evasion**: Playwright browser automation with stealth techniques
 - **🔄 Intelligent Fallback**: Multi-layered scraping strategies for maximum success
 - **⚡ High Performance**: Container-based Lambda with ARM64 architecture

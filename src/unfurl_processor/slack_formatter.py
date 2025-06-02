@@ -1,11 +1,10 @@
 """Enhanced Slack formatting for Instagram unfurls with video support."""
 
+import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from aws_lambda_powertools import Logger
-
-logger = Logger()
+logger = logging.getLogger(__name__)
 
 
 class SlackFormatter:
@@ -102,22 +101,42 @@ class SlackFormatter:
 
         # Add video if available and supported
         if video_url and not is_fallback:
-            # Check if video URL is directly playable in Slack
-            if self._is_slack_playable_video(video_url):
-                unfurl[
-                    "video_html"
-                ] = f"""
-                <video controls width="400" height="400"
-                    poster="{image_url or ''}" preload="metadata">
-                    <source src="{video_url}" type="video/mp4">
-                    <p>Your browser doesn't support HTML5 video.
-                    <a href="{video_url}">Download the video</a>.</p>
-                </video>
-                """
-                unfurl["video_html_width"] = 400
-                unfurl["video_html_height"] = 400
+            # Use Slack Video Block for embedded playable videos
+            video_proxy_url = self._get_video_proxy_url(video_url, url)
+            if video_proxy_url:
+                # Use Block Kit with Video Block for embedded playback
+                unfurl["blocks"] = [
+                    {
+                        "type": "video",
+                        "video_url": video_proxy_url,
+                        "alt_text": "Instagram video",
+                        "title": {
+                            "type": "plain_text",
+                            "text": title[:150] + "..." if len(title) > 150 else title,
+                        },
+                        "description": {
+                            "type": "plain_text",
+                            "text": (
+                                description[:500] + "..."
+                                if len(description) > 500
+                                else description
+                            ),
+                        },
+                        "thumbnail_url": image_url,
+                        "provider_name": "Instagram",
+                        "provider_icon_url": (
+                            "https://www.instagram.com/static/images/ico/"
+                            "favicon-192.png/68d99ba29cc8.png"
+                        ),
+                        "title_url": url,
+                    }
+                ]
+                # Remove traditional unfurl fields when using blocks
+                unfurl.pop("title", None)
+                unfurl.pop("title_link", None)
+                unfurl.pop("text", None)
             else:
-                # Use thumbnail if video not directly playable
+                # Fallback to thumbnail with play button
                 if image_url:
                     unfurl["image_url"] = image_url
                 unfurl["text"] += f"\n\n🎬 <{url}|Watch on Instagram>"
@@ -242,6 +261,61 @@ class SlackFormatter:
                 return str(num)
         except (ValueError, TypeError):
             return str(num)
+
+    def _get_video_proxy_url(self, video_url: str, url: str) -> Optional[str]:
+        """Get video proxy URL for playable Instagram videos."""
+        try:
+            import os
+            import urllib.parse
+
+            # Get the video proxy base URL from environment
+            proxy_base_url = os.environ.get("VIDEO_PROXY_BASE_URL")
+            if not proxy_base_url:
+                logger.warning("VIDEO_PROXY_BASE_URL not configured")
+                return None
+
+            # Only proxy Instagram video URLs for security
+            if not self._is_instagram_video(video_url):
+                logger.debug(f"Not an Instagram video URL: {video_url}")
+                return None
+
+            # URL encode the video URL for safe transmission
+            encoded_video_url = urllib.parse.quote(video_url, safe="")
+
+            # Construct the proxy URL
+            proxy_url = f"{proxy_base_url}/video/{encoded_video_url}"
+
+            logger.info(f"Generated video proxy URL for {video_url[:50]}...")
+            return proxy_url
+
+        except Exception as e:
+            logger.error(f"Failed to generate video proxy URL: {e}")
+            return None
+
+    def _is_instagram_video(self, video_url: str) -> bool:
+        """Check if URL is a valid Instagram video URL."""
+        if not video_url:
+            return False
+
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(video_url)
+
+            # Instagram CDN domains
+            instagram_domains = [
+                "scontent.cdninstagram.com",
+                "video.cdninstagram.com",
+                "instagram.fhel3-1.fna.fbcdn.net",
+                "scontent-iad3-1.cdninstagram.com",
+                "scontent.xx.fbcdn.net",
+                "video.xx.fbcdn.net",
+            ]
+
+            return any(domain in parsed.netloc for domain in instagram_domains)
+
+        except Exception:
+            return False
 
     def create_slack_blocks(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
