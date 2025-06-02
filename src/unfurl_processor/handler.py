@@ -591,7 +591,8 @@ def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
 
     except requests.exceptions.RequestException as e:
         logger.error(
-            "Request failed for Instagram URL", extra={"error": str(e), "url": url},
+            "Request failed for Instagram URL",
+            extra={"error": str(e), "url": url},
         )
         if metrics:
             metrics.add_metric(
@@ -782,7 +783,8 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(
-            "Error fetching oEmbed data", extra={"error": str(e), "url": url},
+            "Error fetching oEmbed data",
+            extra={"error": str(e), "url": url},
         )
 
     return None
@@ -1080,7 +1082,8 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         def _get_meta_content(names: list) -> Optional[str]:
             for n in names:
                 tag = soup.find("meta", attrs={"property": n}) or soup.find(
-                    "meta", attrs={"name": n},
+                    "meta",
+                    attrs={"name": n},
                 )
                 if tag and tag.get("content"):
                     return tag["content"]
