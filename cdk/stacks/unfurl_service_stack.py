@@ -191,6 +191,7 @@ class UnfurlServiceStack(Stack):
             function_name=f"video-proxy-{env_name}",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
+            handler="unfurl_processor.video_proxy.lambda_handler",
             code=lambda_.Code.from_asset_image(
                 directory=".",
                 file="Dockerfile",
