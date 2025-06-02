@@ -322,7 +322,8 @@ class AsyncUnfurlHandler:
                     "processing_started": int(time.time()),
                     "ttl": int(time.time()) + 300,  # 5 minutes TTL
                 },
-                ConditionExpression="attribute_not_exists(url)",
+                ConditionExpression="attribute_not_exists(#url)",
+                ExpressionAttributeNames={"#url": "url"},
             )
 
             # If we get here, the URL was not being processed
