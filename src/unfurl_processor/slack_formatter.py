@@ -67,7 +67,8 @@ class SlackFormatter:
         content_type = data.get("content_type", "video")
         is_verified = data.get("is_verified", False)
 
-        # Use rich Block Kit layout for videos (similar to images but optimized for video)
+        # Use rich Block Kit layout for videos (similar to images but optimized
+        # for video)
         if not is_fallback and (video_url or image_url):
             # For videos, we'll use the same rich block layout as images
             # but with video-specific indicators and engagement
@@ -88,7 +89,8 @@ class SlackFormatter:
     def _format_image_unfurl(
         self, data: Dict[str, Any], is_fallback: bool
     ) -> Dict[str, Any]:
-        """Format image/photo content with rich, Instagram-like layout using Block Kit."""
+        """Format image/photo content with rich, Instagram-like layout using
+        Block Kit."""
         # Extract metadata
         username = data.get("username", "Instagram User")
         caption = data.get("caption", "")
@@ -125,13 +127,13 @@ class SlackFormatter:
         # Header with Instagram branding and username
         username_text = f"*{username}*"
         if is_verified:
-            username_text += " ✓"
+            username_text += " "
 
         header_block = {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"📷 *Instagram*\n{username_text}",
+                "text": f" Instagram*\n{username_text}",
             },
             "accessory": {
                 "type": "image",
@@ -167,7 +169,7 @@ class SlackFormatter:
             if content_type in ["video", "reel"]:
                 image_block["title"] = {
                     "type": "plain_text",
-                    "text": f"📹 {content_type.title()}",
+                    "text": f" {content_type.title()}",
                 }
 
             blocks.append(image_block)
@@ -220,7 +222,10 @@ class SlackFormatter:
             "title_link": url,
             "text": description,
             "footer": "Instagram",
-            "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
+            "footer_icon": (
+                "https://www.instagram.com/static/images/ico/"
+                "favicon-192.png/68d99ba29cc8.png"
+            ),
         }
 
     def _format_caption_with_hashtags(self, caption: str) -> str:
