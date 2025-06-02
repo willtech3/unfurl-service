@@ -6,7 +6,6 @@ FROM public.ecr.aws/lambda/python:3.12-arm64
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DOCKER_BUILDKIT=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
 
 # Install system dependencies needed for Playwright
 RUN dnf update -y && \
@@ -31,18 +30,31 @@ RUN dnf update -y && \
 COPY requirements-docker.txt /tmp/requirements-docker.txt
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
-# Install Playwright and browser
+# Install Playwright - ensure it's installed in the correct location
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
+    playwright==1.45.0 \
     playwright-stealth==1.0.6
 
-# Install Playwright browsers
+# Set up Playwright environment variables before browser installation
+ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
+ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:${PYTHONPATH}
+
+# Install Playwright browsers with explicit path
 RUN cd ${LAMBDA_TASK_ROOT} && \
-    python -m playwright install chromium
+    PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers \
+    PYTHONPATH=${LAMBDA_TASK_ROOT} \
+    python -m playwright install chromium --with-deps && \
+    ls -la ${LAMBDA_TASK_ROOT}/playwright-browsers/ || echo "Browser installation directory not found"
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \
     find ${LAMBDA_TASK_ROOT} -type f -name "chrome*" -exec chmod +x {} \; && \
-    find ${LAMBDA_TASK_ROOT} -type f -name "chromium*" -exec chmod +x {} \;
+    find ${LAMBDA_TASK_ROOT} -type f -name "chromium*" -exec chmod +x {} \; && \
+    # Create symlinks if needed
+    mkdir -p /var/task/playwright-browsers && \
+    if [ -d "${LAMBDA_TASK_ROOT}/playwright-browsers" ]; then \
+        ln -sf ${LAMBDA_TASK_ROOT}/playwright-browsers/* /var/task/playwright-browsers/ 2>/dev/null || true; \
+    fi
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
