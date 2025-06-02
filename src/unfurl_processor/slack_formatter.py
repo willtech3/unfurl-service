@@ -49,7 +49,13 @@ class SlackFormatter:
     def _format_video_unfurl(
         self, data: Dict[str, Any], is_fallback: bool
     ) -> Dict[str, Any]:
-        """Format video/reel content with playable video support."""
+        """
+        Format video/reel content with rich, Instagram-like layout using Block Kit.
+
+        This method creates a rich, Instagram-like layout for video and reel content
+        using Slack's Block Kit. It extracts metadata from the provided data and
+        constructs a Block Kit layout with an image, caption, and engagement stats.
+        """
         # Extract metadata
         username = data.get("username", "Instagram User")
         caption = data.get("caption", "")
@@ -59,99 +65,30 @@ class SlackFormatter:
         image_url = data.get("image_url")  # Thumbnail
         url = data.get("url", "")
         content_type = data.get("content_type", "video")
+        is_verified = data.get("is_verified", False)
 
-        # Create title
-        content_label = "Reel" if content_type == "reel" else "Video"
-        title = f"📹 {username}'s Instagram {content_label}"
-
-        # Create description with engagement stats
-        description_parts = []
-        if caption and not is_fallback:
-            # Truncate long captions
-            display_caption = caption[:150] + "..." if len(caption) > 150 else caption
-            description_parts.append(f'"{display_caption}"')
-
-        if likes is not None or comments is not None:
-            stats = []
-            if likes is not None:
-                stats.append(f"❤️ {self._format_number(likes)}")
-            if comments is not None:
-                stats.append(f"💬 {self._format_number(comments)}")
-            if stats:
-                description_parts.append(" • ".join(stats))
-
-        description = (
-            "\n".join(description_parts)
-            if description_parts
-            else "Instagram video content"
-        )
-
-        # Enhanced unfurl for video content
-        unfurl = {
-            "color": "#E4405F",  # Instagram brand color
-            "title": title,
-            "title_link": url,
-            "text": description,
-            "footer": "Instagram",
-            "footer_icon": (
-                "https://www.instagram.com/static/images/ico/"
-                "favicon-192.png/68d99ba29cc8.png"
-            ),
-        }
-
-        # Add video if available and supported
-        if video_url and not is_fallback:
-            # Use Slack Video Block for embedded playable videos
-            video_proxy_url = self._get_video_proxy_url(video_url, url)
-            if video_proxy_url:
-                # Use Block Kit with Video Block for embedded playback
-                unfurl["blocks"] = [
-                    {
-                        "type": "video",
-                        "video_url": video_proxy_url,
-                        "alt_text": "Instagram video",
-                        "title": {
-                            "type": "plain_text",
-                            "text": title[:150] + "..." if len(title) > 150 else title,
-                        },
-                        "description": {
-                            "type": "plain_text",
-                            "text": (
-                                description[:500] + "..."
-                                if len(description) > 500
-                                else description
-                            ),
-                        },
-                        "thumbnail_url": image_url,
-                        "provider_name": "Instagram",
-                        "provider_icon_url": (
-                            "https://www.instagram.com/static/images/ico/"
-                            "favicon-192.png/68d99ba29cc8.png"
-                        ),
-                        "title_url": url,
-                    }
-                ]
-                # Remove traditional unfurl fields when using blocks
-                unfurl.pop("title", None)
-                unfurl.pop("title_link", None)
-                unfurl.pop("text", None)
-            else:
-                # Fallback to thumbnail with play button
-                if image_url:
-                    unfurl["image_url"] = image_url
-                unfurl["text"] += f"\n\n🎬 <{url}|Watch on Instagram>"
-        elif image_url:
-            # Use thumbnail for fallback
-            unfurl["image_url"] = image_url
-            if is_fallback:
-                unfurl["text"] += f"\n\n🎬 <{url}|Watch on Instagram>"
-
-        return unfurl
+        # Use rich Block Kit layout for videos (similar to images but optimized for video)
+        if not is_fallback and (video_url or image_url):
+            # For videos, we'll use the same rich block layout as images
+            # but with video-specific indicators and engagement
+            return self._create_rich_block_unfurl(
+                username,
+                caption,
+                likes,
+                comments,
+                image_url,
+                url,
+                is_verified,
+                content_type,
+            )
+        else:
+            # Fallback to basic unfurl
+            return self._create_basic_unfurl(username, caption, url, content_type)
 
     def _format_image_unfurl(
         self, data: Dict[str, Any], is_fallback: bool
     ) -> Dict[str, Any]:
-        """Format image/photo content with rich metadata."""
+        """Format image/photo content with rich, Instagram-like layout using Block Kit."""
         # Extract metadata
         username = data.get("username", "Instagram User")
         caption = data.get("caption", "")
@@ -159,50 +96,146 @@ class SlackFormatter:
         comments = data.get("comments")
         image_url = data.get("image_url")
         url = data.get("url", "")
+        is_verified = data.get("is_verified", False)
 
-        # Create title
-        title = f"📸 {username}'s Instagram Post"
+        # Use Block Kit for rich, Instagram-like layout
+        if not is_fallback and image_url:
+            return self._create_rich_block_unfurl(
+                username, caption, likes, comments, image_url, url, is_verified, "photo"
+            )
+        else:
+            # Fallback to basic unfurl
+            return self._create_basic_unfurl(username, caption, url, "photo")
 
-        # Create rich description
-        description_parts = []
-        if caption and not is_fallback:
-            # Truncate long captions but show more for photos
+    def _create_rich_block_unfurl(
+        self,
+        username: str,
+        caption: str,
+        likes: Optional[int],
+        comments: Optional[int],
+        image_url: str,
+        url: str,
+        is_verified: bool,
+        content_type: str,
+    ) -> Dict[str, Any]:
+        """Create rich Instagram-style unfurl using Slack Block Kit."""
+
+        blocks = []
+
+        # Header with Instagram branding and username
+        username_text = f"*{username}*"
+        if is_verified:
+            username_text += " ✓"
+
+        header_block = {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"📷 *Instagram*\n{username_text}",
+            },
+            "accessory": {
+                "type": "image",
+                "image_url": (
+                    "https://www.instagram.com/static/images/ico/"
+                    "favicon-192.png/68d99ba29cc8.png"
+                ),
+                "alt_text": "Instagram",
+            },
+        }
+        blocks.append(header_block)
+
+        # Caption (if available)
+        if caption:
             display_caption = caption[:200] + "..." if len(caption) > 200 else caption
+            formatted_caption = self._format_caption_with_hashtags(display_caption)
+
+            caption_block = {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": formatted_caption},
+            }
+            blocks.append(caption_block)
+
+        # Main image/video block
+        if image_url:
+            image_block = {
+                "type": "image",
+                "image_url": image_url,
+                "alt_text": f"Instagram {content_type} by {username}",
+            }
+
+            # Add video indicator for video content
+            if content_type in ["video", "reel"]:
+                image_block["title"] = {
+                    "type": "plain_text",
+                    "text": f"📹 {content_type.title()}",
+                }
+
+            blocks.append(image_block)
+
+        # Footer with engagement stats and view link
+        footer_elements = []
+
+        # Add engagement stats
+        if likes is not None or comments is not None:
+            stats_parts = []
+            if likes is not None:
+                stats_parts.append(f"{self._format_number(likes)} likes")
+            if comments is not None:
+                stats_parts.append(f"{self._format_number(comments)} comments")
+
+            if stats_parts:
+                stats_text = " • ".join(stats_parts)
+                footer_elements.append({"type": "mrkdwn", "text": stats_text})
+
+        # Add view link
+        footer_elements.append({"type": "mrkdwn", "text": f"<{url}|View on Instagram>"})
+
+        if footer_elements:
+            footer_block = {"type": "context", "elements": footer_elements}
+            blocks.append(footer_block)
+
+        return {"color": "#E4405F", "blocks": blocks}
+
+    def _create_basic_unfurl(
+        self, username: str, caption: str, url: str, content_type: str
+    ) -> Dict[str, Any]:
+        """Create basic unfurl for fallback scenarios."""
+        title = f" {username}" if content_type == "photo" else f" {username}"
+
+        description_parts = []
+        if caption:
+            display_caption = caption[:150] + "..." if len(caption) > 150 else caption
             description_parts.append(f'"{display_caption}"')
 
-        if likes is not None or comments is not None:
-            stats = []
-            if likes is not None:
-                stats.append(f"❤️ {self._format_number(likes)}")
-            if comments is not None:
-                stats.append(f"💬 {self._format_number(comments)}")
-            if stats:
-                description_parts.append(" • ".join(stats))
-
         description = (
-            "\n".join(description_parts) if description_parts else "Instagram photo"
+            "\n".join(description_parts)
+            if description_parts
+            else f"Instagram {content_type}"
         )
+        description += f"\n\n {url}|View on Instagram>"
 
-        # Enhanced unfurl for image content
-        unfurl = {
-            "color": "#E4405F",  # Instagram brand color
+        return {
+            "color": "#E4405F",
             "title": title,
             "title_link": url,
             "text": description,
             "footer": "Instagram",
-            "footer_icon": (
-                "https://www.instagram.com/static/images/ico/"
-                "favicon-192.png/68d99ba29cc8.png"
-            ),
+            "footer_icon": "https://www.instagram.com/static/images/ico/favicon-192.png/68d99ba29cc8.png",
         }
 
-        # Add image if available
-        if image_url and not is_fallback:
-            unfurl["image_url"] = image_url
-        elif is_fallback:
-            unfurl["text"] += f"\n\n📱 <{url}|View on Instagram>"
+    def _format_caption_with_hashtags(self, caption: str) -> str:
+        """Format caption text with proper hashtag styling."""
+        import re
 
-        return unfurl
+        # Convert #hashtags to styled format (but keep them readable)
+        hashtag_pattern = r"#([A-Za-z0-9_]+)"
+        caption = re.sub(hashtag_pattern, r"`#\1`", caption)
+
+        # Convert @mentions to styled format
+        mention_pattern = r"@([A-Za-z0-9._]+)"
+        caption = re.sub(mention_pattern, r"`@\1`", caption)
+
+        return caption
 
     def _format_basic_unfurl(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Format basic unfurl as fallback."""
@@ -337,9 +370,9 @@ class SlackFormatter:
 
             # Header block
             header_text = (
-                f"📹 *{username}'s Instagram Reel*"
+                f" *{username}'s Instagram Reel*"
                 if content_type == "reel"
-                else f"📸 *{username}'s Instagram Post*"
+                else f" *{username}'s Instagram Post*"
             )
             blocks.append(
                 {
@@ -379,11 +412,11 @@ class SlackFormatter:
             if (likes is not None or comments is not None) and not is_fallback:
                 stats_text = ""
                 if likes is not None:
-                    stats_text += f"❤️ {self._format_number(likes)}"
+                    stats_text += f" {self._format_number(likes)}"
                 if comments is not None:
                     if stats_text:
                         stats_text += "  •  "
-                    stats_text += f"💬 {self._format_number(comments)}"
+                    stats_text += f" {self._format_number(comments)}"
 
                 blocks.append(
                     {

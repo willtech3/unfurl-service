@@ -273,6 +273,7 @@ class HttpScraper(BaseScraper):
                 "likes": None,
                 "comments": None,
                 "timestamp": None,
+                "is_verified": False,  # Will be extracted from page content
             }
 
             # Parse description for additional metadata
@@ -365,5 +366,53 @@ class HttpScraper(BaseScraper):
                 if title_text and title_text != "Instagram":
                     data["title"] = title_text
 
+            # Extract verification status
+            self._extract_verification_status(soup, data)
+
         except Exception as e:
             self.logger.debug(f"Enhanced data extraction failed: {e}")
+
+    def _extract_verification_status(
+        self, soup: BeautifulSoup, data: Dict[str, Any]
+    ) -> None:
+        """Extract verification status from page content."""
+        try:
+            # Look for verification indicators in the page
+            verification_selectors = [
+                'svg[aria-label*="Verified"]',
+                'span[aria-label*="Verified"]',
+                ".coreSpriteVerifiedBadge",
+                ".coreSpriteVerifiedBadgeSmall",
+                '[aria-label*="verified"]',
+                '[title*="Verified"]',
+                '[title*="verified"]',
+            ]
+
+            for selector in verification_selectors:
+                if soup.select(selector):
+                    data["is_verified"] = True
+                    self.logger.debug("Found verification badge in page")
+                    return
+
+            # Check text content for verification mentions
+            page_text = soup.get_text().lower()
+            if any(
+                term in page_text for term in ["verified", "checkmark", "blue tick"]
+            ):
+                # Additional check to ensure it's not just random text
+                verification_context = [
+                    "verified account",
+                    "verified profile",
+                    "verified user",
+                    "blue checkmark",
+                    "verification badge",
+                ]
+                if any(context in page_text for context in verification_context):
+                    data["is_verified"] = True
+                    self.logger.debug("Found verification mention in page text")
+                    return
+
+            self.logger.debug("No verification indicators found")
+
+        except Exception as e:
+            self.logger.debug(f"Verification extraction failed: {e}")
