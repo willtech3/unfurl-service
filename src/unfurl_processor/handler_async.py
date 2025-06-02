@@ -10,7 +10,6 @@ Optimized for Docker-based Lambda with:
 """
 
 import asyncio
-import hashlib
 import json
 import os
 import time
@@ -315,7 +314,7 @@ class AsyncUnfurlHandler:
         """Check if URL is being processed using deduplication table."""
         try:
             table = self._get_deduplication_table()
-            
+
             # Try to add URL to deduplication table with conditional write
             table.put_item(
                 Item={
@@ -325,11 +324,11 @@ class AsyncUnfurlHandler:
                 },
                 ConditionExpression="attribute_not_exists(url)",
             )
-            
+
             # If we get here, the URL was not being processed
             self.logger.info(f"Started processing URL: {url}")
             return False
-            
+
         except ClientError as e:
             if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 # URL is already being processed

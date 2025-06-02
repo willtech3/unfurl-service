@@ -2,14 +2,12 @@
 orchestration."""
 
 import asyncio
-import logging
 import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import boto3
-from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger
 
 from .base import BaseScraper, ScrapingResult
@@ -25,10 +23,10 @@ class ScraperManager:
 
     def __init__(self):
         self.logger = logger
-        
+
         # Initialize CloudWatch client for metrics
         try:
-            self.cloudwatch = boto3.client('cloudwatch')
+            self.cloudwatch = boto3.client("cloudwatch")
             self.metrics_enabled = True
             self.logger.info("✅ CloudWatch metrics enabled")
         except Exception as e:
@@ -65,30 +63,34 @@ class ScraperManager:
             f"ScraperManager initialized with {len(self.scrapers)} scrapers"
         )
 
-    def _emit_metric(self, metric_name: str, value: float, unit: str = 'Count', 
-                    dimensions: Optional[Dict[str, str]] = None):
+    def _emit_metric(
+        self,
+        metric_name: str,
+        value: float,
+        unit: str = "Count",
+        dimensions: Optional[Dict[str, str]] = None,
+    ):
         """Emit CloudWatch metric with error handling."""
         if not self.metrics_enabled:
             return
-            
+
         try:
             metric_data = {
-                'MetricName': metric_name,
-                'Value': value,
-                'Unit': unit,
-                'Timestamp': datetime.now(timezone.utc)
+                "MetricName": metric_name,
+                "Value": value,
+                "Unit": unit,
+                "Timestamp": datetime.now(timezone.utc),
             }
-            
+
             if dimensions:
-                metric_data['Dimensions'] = [
-                    {'Name': k, 'Value': v} for k, v in dimensions.items()
+                metric_data["Dimensions"] = [
+                    {"Name": k, "Value": v} for k, v in dimensions.items()
                 ]
-            
+
             self.cloudwatch.put_metric_data(
-                Namespace='UnfurlService/Scrapers',
-                MetricData=[metric_data]
+                Namespace="UnfurlService/Scrapers", MetricData=[metric_data]
             )
-            
+
         except Exception as e:
             # Don't let metrics failures break scraping
             self.logger.warning(f"Failed to emit metric {metric_name}: {e}")
@@ -140,26 +142,32 @@ class ScraperManager:
 
                 if result.success and result.data:
                     results.append(result)
-                    self._emit_metric('ScraperSuccess', 1, dimensions={'Scraper': scraper.name})
+                    self._emit_metric(
+                        "ScraperSuccess", 1, dimensions={"Scraper": scraper.name}
+                    )
                 else:
                     error_msg = f"{scraper.name} failed: {result.error}"
                     errors.append(error_msg)
                     self.logger.warning(f"❌ {error_msg}")
-                    self._emit_metric('ScraperFailure', 1, dimensions={'Scraper': scraper.name})
+                    self._emit_metric(
+                        "ScraperFailure", 1, dimensions={"Scraper": scraper.name}
+                    )
 
                 # Emit response time metric for each scraper
                 self._emit_metric(
-                    'ScraperResponseTime', 
-                    result.response_time_ms, 
-                    unit='Milliseconds',
-                    dimensions={'Scraper': scraper.name}
+                    "ScraperResponseTime",
+                    result.response_time_ms,
+                    unit="Milliseconds",
+                    dimensions={"Scraper": scraper.name},
                 )
 
             except Exception as e:
                 error_msg = f"{scraper.name} exception: {str(e)}"
                 errors.append(error_msg)
                 self.logger.error(f"💥 {error_msg}")
-                self._emit_metric('ScraperException', 1, dimensions={'Scraper': scraper.name})
+                self._emit_metric(
+                    "ScraperException", 1, dimensions={"Scraper": scraper.name}
+                )
 
         # Select the richest result
         if results:
@@ -170,14 +178,20 @@ class ScraperManager:
             for result in results:
                 score = self.calculate_quality_score(result)
                 self.logger.info(f"📊 {result.method}: quality score {score}")
-                self._emit_metric('QualityScore', score, dimensions={'Scraper': result.method})
+                self._emit_metric(
+                    "QualityScore", score, dimensions={"Scraper": result.method}
+                )
 
             best_score = self.calculate_quality_score(richest_result)
-            scraper_success_msg = f"✅ Best quality: {richest_result.method} (score: {best_score})"
+            scraper_success_msg = (
+                f"✅ Best quality: {richest_result.method} (score: {best_score})"
+            )
             time_msg = f"in {richest_result.response_time_ms}ms (total: {total_time}ms)"
             self.logger.info(f"{scraper_success_msg} {time_msg}")
-            self._emit_metric('BestQualityScraper', 1, dimensions={'Scraper': richest_result.method})
-            self._emit_metric('ScrapingTime', total_time, unit='Milliseconds')
+            self._emit_metric(
+                "BestQualityScraper", 1, dimensions={"Scraper": richest_result.method}
+            )
+            self._emit_metric("ScrapingTime", total_time, unit="Milliseconds")
 
             # Add manager metadata
             richest_result.data["scraper_attempts"] = len(self.scrapers)
@@ -190,7 +204,7 @@ class ScraperManager:
             # All scrapers failed
             total_time = self.measure_time(start_time)
             self.logger.error(f"❌ All {len(self.scrapers)} scrapers failed for {url}")
-            self._emit_metric('AllScrapersFailed', 1)
+            self._emit_metric("AllScrapersFailed", 1)
 
             return ScrapingResult(
                 success=False,
@@ -262,8 +276,8 @@ class ScraperManager:
             f"✅ Concurrent scraping completed: {successful}/{len(urls)} successful "
             f"in {total_time}ms"
         )
-        self._emit_metric('ConcurrentScrapingSuccess', successful)
-        self._emit_metric('ConcurrentScrapingTime', total_time, unit='Milliseconds')
+        self._emit_metric("ConcurrentScrapingSuccess", successful)
+        self._emit_metric("ConcurrentScrapingTime", total_time, unit="Milliseconds")
 
         return final_results
 
@@ -295,7 +309,14 @@ class ScraperManager:
                     "error": result.error,
                     "response_time_ms": result.response_time_ms,
                 }
-                self._emit_metric('ScraperHealthCheck', 1, dimensions={'Scraper': scraper.name, 'Status': health_status["scrapers"][scraper.name]['status']})
+                self._emit_metric(
+                    "ScraperHealthCheck",
+                    1,
+                    dimensions={
+                        "Scraper": scraper.name,
+                        "Status": health_status["scrapers"][scraper.name]["status"],
+                    },
+                )
 
             except Exception as e:
                 health_status["scrapers"][scraper.name] = {
@@ -303,7 +324,14 @@ class ScraperManager:
                     "error": str(e),
                     "response_time_ms": None,
                 }
-                self._emit_metric('ScraperHealthCheck', 1, dimensions={'Scraper': scraper.name, 'Status': health_status["scrapers"][scraper.name]['status']})
+                self._emit_metric(
+                    "ScraperHealthCheck",
+                    1,
+                    dimensions={
+                        "Scraper": scraper.name,
+                        "Status": health_status["scrapers"][scraper.name]["status"],
+                    },
+                )
 
         return health_status
 
@@ -347,14 +375,14 @@ class ScraperManager:
     def calculate_quality_score(self, result: ScrapingResult) -> int:
         """
         Calculate quality score for a scraping result based on content richness.
-        
+
         Scoring factors:
         - Content richness (caption, description, title): 70 points max
-        - Media content (videos, images): 80 points max  
+        - Media content (videos, images): 80 points max
         - Metadata (author, timestamps, engagement): 50 points max
         - Technical quality (high-res, video URLs): 35 points max
         - Source reliability bonus: 15 points max
-        
+
         Total possible: 250 points
         """
         if not result.success or not result.data:
@@ -362,66 +390,71 @@ class ScraperManager:
 
         score = 0
         data = result.data
-        
+
         # Track quality factors for metrics
         quality_factors = {
-            'has_caption': False,
-            'has_description': False,
-            'has_title': False,
-            'has_video': False,
-            'has_multiple_images': False,
-            'has_author': False,
-            'has_engagement': False,
-            'is_high_quality': False
+            "has_caption": False,
+            "has_description": False,
+            "has_title": False,
+            "has_video": False,
+            "has_multiple_images": False,
+            "has_author": False,
+            "has_engagement": False,
+            "is_high_quality": False,
         }
 
         # Content richness (70 points max)
         if data.get("caption"):
             score += 30
-            quality_factors['has_caption'] = True
+            quality_factors["has_caption"] = True
         if data.get("description"):
             score += 25
-            quality_factors['has_description'] = True
+            quality_factors["has_description"] = True
         if data.get("title"):
             score += 15
-            quality_factors['has_title'] = True
+            quality_factors["has_title"] = True
 
         # Media content (80 points max)
         videos = data.get("videos", [])
         if videos and len(videos) > 0:
             score += 40  # Videos are premium content
-            quality_factors['has_video'] = True
+            quality_factors["has_video"] = True
 
         images = data.get("images", [])
         if images:
             if len(images) > 1:
                 score += 20  # Multiple images
-                quality_factors['has_multiple_images'] = True
+                quality_factors["has_multiple_images"] = True
             else:
                 score += 10  # Single image
 
         # Metadata richness (50 points max)
         if data.get("author"):
             score += 15
-            quality_factors['has_author'] = True
+            quality_factors["has_author"] = True
         if data.get("timestamp") or data.get("created_at"):
             score += 10
-        if any(data.get(field) for field in ["like_count", "comment_count", "view_count"]):
+        if any(
+            data.get(field) for field in ["like_count", "comment_count", "view_count"]
+        ):
             score += 15
-            quality_factors['has_engagement'] = True
+            quality_factors["has_engagement"] = True
         if data.get("hashtags"):
             score += 10
 
         # Technical quality indicators (35 points max)
         if data.get("video_url"):
             score += 15  # Direct video URL
-        
+
         # Check for high-resolution indicators
         image_url = data.get("image_url", "")
-        if any(indicator in image_url.lower() for indicator in ["1080", "720", "high", "hd"]):
+        if any(
+            indicator in image_url.lower()
+            for indicator in ["1080", "720", "high", "hd"]
+        ):
             score += 10
-            quality_factors['is_high_quality'] = True
-            
+            quality_factors["is_high_quality"] = True
+
         if data.get("thumbnail_url"):
             score += 5
         if data.get("embed_url"):
@@ -434,22 +467,24 @@ class ScraperManager:
         elif "playwright" in source:
             score += 10  # Browser automation
         elif "http" in source:
-            score += 5   # Basic HTTP
+            score += 5  # Basic HTTP
 
         # Emit detailed quality metrics
-        content_type = 'video' if quality_factors['has_video'] else 'photo'
-        self._emit_metric('ContentType', 1, dimensions={
-            'Type': content_type,
-            'Scraper': result.method
-        })
-        
+        content_type = "video" if quality_factors["has_video"] else "photo"
+        self._emit_metric(
+            "ContentType",
+            1,
+            dimensions={"Type": content_type, "Scraper": result.method},
+        )
+
         # Emit quality factor metrics
         for factor, has_factor in quality_factors.items():
             if has_factor:
-                self._emit_metric('QualityFactor', 1, dimensions={
-                    'Factor': factor,
-                    'Scraper': result.method
-                })
+                self._emit_metric(
+                    "QualityFactor",
+                    1,
+                    dimensions={"Factor": factor, "Scraper": result.method},
+                )
 
         return score
 
