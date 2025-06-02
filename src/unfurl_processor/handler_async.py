@@ -325,7 +325,8 @@ class AsyncUnfurlHandler:
 
             # Validate event structure
             if not all(
-                key in sns_message for key in ["channel", "message_ts", "unfurl_id", "links"]
+                key in sns_message
+                for key in ["channel", "message_ts", "unfurl_id", "links"]
             ):
                 self.logger.error(
                     "Invalid event structure", extra={"event": sns_message}
