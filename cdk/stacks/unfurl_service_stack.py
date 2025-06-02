@@ -79,8 +79,7 @@ class UnfurlServiceStack(Stack):
                                 "pip install slack-sdk boto3 "
                                 "aws-lambda-powertools aws-xray-sdk "
                                 "-t /asset-output/python/",
-                                "find /asset-output -type f -name "
-                                "'*.pyc' -delete",
+                                "find /asset-output -type f -name " "'*.pyc' -delete",
                                 "find /asset-output -type f -name "
                                 "'__pycache__' -exec rm -rf {} +",
                                 "find /asset-output -type f -name "
