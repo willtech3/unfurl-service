@@ -82,7 +82,15 @@ class AsyncUnfurlHandler:
     def _get_dynamodb_resource(self):
         """Get DynamoDB resource."""
         if self.dynamodb is None:
-            self.dynamodb = boto3.resource("dynamodb")
+            try:
+                self.dynamodb = boto3.resource("dynamodb")
+            except Exception as e:
+                # Handle missing AWS region or credentials in test environments
+                logger.warning(
+                    f"Failed to initialize DynamoDB resource: {e}. "
+                    "Deduplication will be disabled."
+                )
+                self.dynamodb = None
         return self.dynamodb
 
     async def _get_http_client(self) -> httpx.AsyncClient:
@@ -305,7 +313,10 @@ class AsyncUnfurlHandler:
     def _get_deduplication_table(self):
         """Get DynamoDB deduplication table."""
         if self.deduplication_table is None:
-            self.deduplication_table = self._get_dynamodb_resource().Table(
+            dynamodb_resource = self._get_dynamodb_resource()
+            if dynamodb_resource is None:
+                return None
+            self.deduplication_table = dynamodb_resource.Table(
                 os.environ.get("DEDUPLICATION_TABLE_NAME", "unfurl-deduplication-dev")
             )
         return self.deduplication_table
@@ -314,6 +325,13 @@ class AsyncUnfurlHandler:
         """Check if URL is being processed using deduplication table."""
         try:
             table = self._get_deduplication_table()
+            
+            # If table is None (e.g., in test environment), allow processing
+            if table is None:
+                logger.info(
+                    f"DynamoDB deduplication unavailable, allowing processing: {url}"
+                )
+                return False
 
             # Try to add URL to deduplication table with conditional write
             table.put_item(
