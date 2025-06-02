@@ -38,6 +38,19 @@ class UnfurlServiceStack(Stack):
             point_in_time_recovery=True,
         )
 
+        # DynamoDB table for deduplication (prevent concurrent processing)
+        deduplication_table = dynamodb.Table(
+            self,
+            "UnfurlDeduplication",
+            table_name=f"unfurl-deduplication-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="url", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl",
+        )
+
         # SNS topic for async processing
         unfurl_topic = sns.Topic(
             self,
@@ -132,6 +145,7 @@ class UnfurlServiceStack(Stack):
             ),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
+                "DEDUPLICATION_TABLE_NAME": deduplication_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "INFO",
@@ -148,6 +162,7 @@ class UnfurlServiceStack(Stack):
 
         # Grant permissions to unfurl processor
         cache_table.grant_read_write_data(unfurl_processor)
+        deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
 
         # Dead Letter Queue for failed Lambda invocations

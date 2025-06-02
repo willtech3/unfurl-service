@@ -10,6 +10,7 @@ Optimized for Docker-based Lambda with:
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import time
@@ -22,6 +23,7 @@ import httpx
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from botocore.exceptions import ClientError
 from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
 
@@ -54,6 +56,7 @@ class AsyncUnfurlHandler:
         self.secrets_client = None
         self.dynamodb = None
         self.http_client = None
+        self.deduplication_table = None
 
         # Initialize on first use for better cold start performance
 
@@ -300,6 +303,43 @@ class AsyncUnfurlHandler:
 
         return instagram_links
 
+    def _get_deduplication_table(self):
+        """Get DynamoDB deduplication table."""
+        if self.deduplication_table is None:
+            self.deduplication_table = self._get_dynamodb_resource().Table(
+                os.environ.get("DEDUPLICATION_TABLE_NAME", "unfurl-deduplication-dev")
+            )
+        return self.deduplication_table
+
+    def _is_url_being_processed(self, url: str) -> bool:
+        """Check if URL is being processed using deduplication table."""
+        try:
+            table = self._get_deduplication_table()
+            
+            # Try to add URL to deduplication table with conditional write
+            table.put_item(
+                Item={
+                    "url": url,
+                    "processing_started": int(time.time()),
+                    "ttl": int(time.time()) + 300,  # 5 minutes TTL
+                },
+                ConditionExpression="attribute_not_exists(url)",
+            )
+            
+            # If we get here, the URL was not being processed
+            self.logger.info(f"Started processing URL: {url}")
+            return False
+            
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                # URL is already being processed
+                self.logger.info(f"URL already being processed: {url}")
+                return True
+            else:
+                self.logger.error(f"Failed to check deduplication table: {str(e)}")
+                # On error, allow processing to avoid blocking
+                return False
+
     @tracer.capture_method
     async def process_event(
         self, event: Dict[str, Any], context: LambdaContext
@@ -368,6 +408,9 @@ class AsyncUnfurlHandler:
             # Process links concurrently for better performance
             tasks = []
             for url in instagram_links:
+                if self._is_url_being_processed(url):
+                    self.logger.info(f"Skipping URL {url} as it's being processed")
+                    continue
                 task = self._process_single_link(url)
                 tasks.append(task)
 
