@@ -325,7 +325,7 @@ class AsyncUnfurlHandler:
         """Check if URL is being processed using deduplication table."""
         try:
             table = self._get_deduplication_table()
-            
+
             # If table is None (e.g., in test environment), allow processing
             if table is None:
                 logger.info(
