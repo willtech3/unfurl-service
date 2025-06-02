@@ -144,6 +144,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                 message = {
                     "channel": event_data.get("channel"),
                     "message_ts": event_data.get("message_ts"),
+                    "unfurl_id": event_data.get("unfurl_id"),
                     "links": instagram_links,
                 }
 

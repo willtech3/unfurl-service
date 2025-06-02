@@ -128,11 +128,7 @@ class AsyncUnfurlHandler:
                 os.environ.get("CACHE_TABLE_NAME", "instagram-unfurl-cache")
             )
 
-            instagram_id = self._extract_instagram_id(url)
-            if not instagram_id:
-                return None
-
-            response = table.get_item(Key={"post_id": instagram_id})
+            response = table.get_item(Key={"url": url})
 
             if "Item" in response:
                 item = response["Item"]
@@ -141,7 +137,7 @@ class AsyncUnfurlHandler:
                 if (datetime.now(timezone.utc) - cache_time).total_seconds() < 86400:
                     return item["unfurl_data"]
                 else:
-                    self.logger.info(f"Cache expired for Instagram ID: {instagram_id}")
+                    self.logger.info(f"Cache expired for URL: {url}")
 
             return None
         except Exception as e:
@@ -162,13 +158,14 @@ class AsyncUnfurlHandler:
 
             table.put_item(
                 Item={
+                    "url": url,
                     "post_id": instagram_id,
                     "unfurl_data": unfurl_data,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "ttl": int(time.time()) + 86400,  # 24 hours TTL
                 }
             )
-            self.logger.info(f"Cached unfurl data for Instagram ID: {instagram_id}")
+            self.logger.info(f"Cached unfurl data for URL: {url}")
         except Exception as e:
             self.logger.warning(f"Failed to cache unfurl data: {e}")
 
@@ -242,12 +239,13 @@ class AsyncUnfurlHandler:
         slack_client: AsyncWebClient,
         channel: str,
         ts: str,
+        unfurl_id: str,
         unfurls: Dict[str, Dict[str, Any]],
     ) -> bool:
         """Send enhanced unfurl data to Slack."""
         try:
             response = await slack_client.chat_unfurl(
-                channel=channel, ts=ts, unfurls=unfurls
+                channel=channel, ts=ts, unfurl_id=unfurl_id, unfurls=unfurls
             )
 
             if response["ok"]:
@@ -327,7 +325,7 @@ class AsyncUnfurlHandler:
 
             # Validate event structure
             if not all(
-                key in sns_message for key in ["channel", "message_ts", "links"]
+                key in sns_message for key in ["channel", "message_ts", "unfurl_id", "links"]
             ):
                 self.logger.error(
                     "Invalid event structure", extra={"event": sns_message}
@@ -339,6 +337,7 @@ class AsyncUnfurlHandler:
 
             channel = sns_message["channel"]
             message_ts = sns_message["message_ts"]
+            unfurl_id = sns_message["unfurl_id"]
             links = sns_message["links"]
 
             # Extract Instagram links
@@ -390,7 +389,7 @@ class AsyncUnfurlHandler:
             # Send unfurls to Slack if any succeeded
             if unfurls:
                 await self._send_unfurl_to_slack(
-                    slack_client, channel, message_ts, unfurls
+                    slack_client, channel, message_ts, unfurl_id, unfurls
                 )
 
                 processing_time = time.time() - start_time
