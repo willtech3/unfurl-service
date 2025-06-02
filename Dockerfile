@@ -33,7 +33,6 @@ RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements
 
 # Install Playwright and browser
 RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
-    playwright==1.45.0 \
     playwright-stealth==1.0.6
 
 # Install Playwright browsers
