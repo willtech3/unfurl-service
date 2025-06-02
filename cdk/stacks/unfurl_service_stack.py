@@ -236,12 +236,6 @@ class UnfurlServiceStack(Stack):
         # Grant video proxy read access to cache table
         cache_table.grant_read_write_data(video_proxy)
 
-        # Update unfurl processor environment with video proxy endpoint
-        unfurl_processor.add_environment(
-            "VIDEO_PROXY_BASE_URL", 
-            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/prod"
-        )
-
         # Dead Letter Queue for failed Lambda invocations
         dlq = sqs.Queue(
             self,
@@ -281,6 +275,12 @@ class UnfurlServiceStack(Stack):
                     "X-Slack-Request-Timestamp",
                 ],
             ),
+        )
+
+        # Update unfurl processor environment with video proxy endpoint
+        unfurl_processor.add_environment(
+            "VIDEO_PROXY_BASE_URL", 
+            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/prod"
         )
 
         # Slack events endpoint
