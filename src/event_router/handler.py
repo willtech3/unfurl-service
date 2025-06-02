@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import time
@@ -124,7 +125,10 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             # Process link_shared events
             links = event_data.get("links", [])
             instagram_links = [
-                link
+                {
+                    **link,
+                    "url": html.unescape(link.get("url", ""))  # Decode HTML entities like &amp; -> &
+                }
                 for link in links
                 if link.get("domain") in ["instagram.com", "www.instagram.com"]
             ]
