@@ -28,6 +28,7 @@ class TestAsyncUnfurlHandler:
                             {
                                 "channel": "C12345678",
                                 "message_ts": "1640995200.001",
+                                "unfurl_id": "C12345678.1640995200.001.test_unfurl_id",
                                 "links": [
                                     {
                                         "url": "https://www.instagram.com/p/ABC123/",
@@ -330,6 +331,7 @@ class TestAsyncUnfurlHandler:
                             {
                                 "channel": "C12345678",
                                 "message_ts": "1640995200.001",
+                                "unfurl_id": "C12345678.1640995200.001.test_unfurl_id",
                                 "links": [
                                     {
                                         "url": "https://example.com/test",
