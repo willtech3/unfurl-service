@@ -1,6 +1,8 @@
 """Enhanced Slack formatting for Instagram unfurls with video support."""
 
 import logging
+import os
+import urllib.parse
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -12,6 +14,7 @@ class SlackFormatter:
 
     def __init__(self):
         self.logger = logger
+        self.video_proxy_base_url = os.environ.get("VIDEO_PROXY_BASE_URL")
 
     def format_unfurl_data(
         self, data: Optional[Dict[str, Any]]
@@ -50,11 +53,10 @@ class SlackFormatter:
         self, data: Dict[str, Any], is_fallback: bool
     ) -> Dict[str, Any]:
         """
-        Format video/reel content with rich, Instagram-like layout using Block Kit.
+        Format video/reel content with Slack Video Block for embedded playback.
 
-        This method creates a rich, Instagram-like layout for video and reel content
-        using Slack's Block Kit. It extracts metadata from the provided data and
-        constructs a Block Kit layout with an image, caption, and engagement stats.
+        This method creates either a Video Block for embedded playback or falls back
+        to a rich thumbnail with Instagram-like layout using Block Kit.
         """
         # Extract metadata
         username = data.get("username", "Instagram User")
@@ -67,24 +69,191 @@ class SlackFormatter:
         content_type = data.get("content_type", "video")
         is_verified = data.get("is_verified", False)
 
-        # Use rich Block Kit layout for videos (similar to images but optimized
-        # for video)
-        if not is_fallback and (video_url or image_url):
-            # For videos, we'll use the same rich block layout as images
-            # but with video-specific indicators and engagement
-            return self._create_rich_block_unfurl(
-                username,
-                caption,
-                likes,
-                comments,
-                image_url,
-                url,
-                is_verified,
-                content_type,
-            )
-        else:
-            # Fallback to basic unfurl
-            return self._create_basic_unfurl(username, caption, url, content_type)
+        # Try to create Video Block for embedded playback
+        if (
+            not is_fallback
+            and video_url
+            and self.video_proxy_base_url
+            and self._is_instagram_video_url(video_url)
+        ):
+
+            try:
+                video_block_unfurl = self._create_video_block_unfurl(
+                    username,
+                    caption,
+                    likes,
+                    comments,
+                    video_url,
+                    image_url,
+                    url,
+                    is_verified,
+                    content_type,
+                )
+                if video_block_unfurl:
+                    self.logger.info(f"Created Video Block unfurl for {content_type}")
+                    return video_block_unfurl
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to create Video Block, falling back to thumbnail: {e}"
+                )
+
+        # Fallback to rich thumbnail layout
+        return self._create_rich_block_unfurl(
+            username,
+            caption,
+            likes,
+            comments,
+            image_url,
+            url,
+            is_verified,
+            content_type,
+        )
+
+    def _create_video_block_unfurl(
+        self,
+        username: str,
+        caption: str,
+        likes: Optional[int],
+        comments: Optional[int],
+        video_url: str,
+        thumbnail_url: Optional[str],
+        post_url: str,
+        is_verified: bool,
+        content_type: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Create Slack Video Block unfurl for embedded video playback.
+
+        Uses Slack's Video Block feature to enable in-chat video playback
+        through the video proxy service.
+        """
+        try:
+            # Generate video proxy URL
+            encoded_video_url = urllib.parse.quote(video_url, safe="")
+            video_proxy_url = f"{self.video_proxy_base_url}/video/{encoded_video_url}"
+
+            blocks = []
+
+            # Header with Instagram branding and username
+            username_text = f"*{username}*"
+            if is_verified:
+                username_text += " ✓"
+
+            header_block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"📷 *Instagram*\n{username_text}",
+                },
+                "accessory": {
+                    "type": "image",
+                    "image_url": (
+                        "https://www.instagram.com/static/images/ico/"
+                        "favicon-192.png/68d99ba29cc8.png"
+                    ),
+                    "alt_text": "Instagram",
+                },
+            }
+            blocks.append(header_block)
+
+            # Caption (if available)
+            if caption:
+                display_caption = (
+                    caption[:200] + "..." if len(caption) > 200 else caption
+                )
+                formatted_caption = self._format_caption_with_hashtags(display_caption)
+
+                caption_block = {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": formatted_caption},
+                }
+                blocks.append(caption_block)
+
+            # Video Block for embedded playback
+            video_block = {
+                "type": "video",
+                "video_url": video_proxy_url,
+                "alt_text": f"Instagram {content_type} by {username}",
+                "title": {
+                    "type": "plain_text",
+                    "text": f"🎬 {content_type.title()} Content",
+                },
+            }
+
+            # Add thumbnail if available
+            if thumbnail_url:
+                video_block["thumbnail_url"] = thumbnail_url
+
+            # Add description with engagement stats
+            description_parts = []
+            if likes is not None:
+                description_parts.append(f"{self._format_number(likes)} likes")
+            if comments is not None:
+                description_parts.append(f"{self._format_number(comments)} comments")
+
+            if description_parts:
+                video_block["description"] = {
+                    "type": "plain_text",
+                    "text": " • ".join(description_parts),
+                }
+
+            blocks.append(video_block)
+
+            # Footer with view link
+            footer_block = {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f"<{post_url}|View on Instagram>"}
+                ],
+            }
+            blocks.append(footer_block)
+
+            return {"color": "#E4405F", "blocks": blocks}
+
+        except Exception as e:
+            self.logger.error(f"Failed to create Video Block unfurl: {e}")
+            return None
+
+    def _is_instagram_video_url(self, video_url: str) -> bool:
+        """
+        Validate that the video URL is from Instagram's CDN.
+
+        This ensures we only proxy legitimate Instagram video URLs
+        for security purposes.
+        """
+        if not video_url:
+            return False
+
+        try:
+            parsed = urlparse(video_url)
+            # Instagram video CDN domains
+            valid_domains = [
+                "scontent.cdninstagram.com",
+                "video.cdninstagram.com",
+                "scontent-lga3-1.cdninstagram.com",
+                "scontent-lga3-2.cdninstagram.com",
+                "instagram.fcdn.us",
+                "video.xx.fbcdn.net",
+            ]
+
+            domain = parsed.netloc.lower()
+
+            # Check exact match or subdomain of valid domains
+            for valid_domain in valid_domains:
+                if domain == valid_domain or domain.endswith(f".{valid_domain}"):
+                    return True
+
+            # Also check for Instagram CDN pattern (scontent-*.cdninstagram.com)
+            if "cdninstagram.com" in domain and (
+                "scontent" in domain or "video" in domain
+            ):
+                return True
+
+            return False
+
+        except Exception as e:
+            self.logger.warning(f"Error validating video URL {video_url}: {e}")
+            return False
 
     def _format_image_unfurl(
         self, data: Dict[str, Any], is_fallback: bool
@@ -127,13 +296,13 @@ class SlackFormatter:
         # Header with Instagram branding and username
         username_text = f"*{username}*"
         if is_verified:
-            username_text += " "
+            username_text += " ✓"
 
         header_block = {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f" Instagram*\n{username_text}",
+                "text": f"📷 *Instagram*\n{username_text}",
             },
             "accessory": {
                 "type": "image",
@@ -169,7 +338,7 @@ class SlackFormatter:
             if content_type in ["video", "reel"]:
                 image_block["title"] = {
                     "type": "plain_text",
-                    "text": f" {content_type.title()}",
+                    "text": f"🎬 {content_type.title()}",
                 }
 
             blocks.append(image_block)
@@ -202,7 +371,7 @@ class SlackFormatter:
         self, username: str, caption: str, url: str, content_type: str
     ) -> Dict[str, Any]:
         """Create basic unfurl for fallback scenarios."""
-        title = f" {username}" if content_type == "photo" else f" {username}"
+        title = f" *{username}" if content_type == "photo" else f" *{username}"
 
         description_parts = []
         if caption:

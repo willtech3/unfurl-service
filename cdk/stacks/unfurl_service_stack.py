@@ -77,15 +77,25 @@ class UnfurlServiceStack(Stack):
                         " && ".join(
                             [
                                 "pip install --no-cache-dir --platform linux_aarch64 "
-                                "--target /asset-output/python/ --only-binary=:all: "
+                                "--target /asset-output/python/ "
                                 "-r requirements-event-router.txt || "
-                                "pip install --no-cache-dir --target /asset-output/python/ "
+                                "pip install --no-cache-dir "
+                                "--target /asset-output/python/ "
                                 "-r requirements-event-router.txt",
-                                "find /asset-output -type f -name '*.pyc' -delete || true",
-                                "find /asset-output -type d -name '__pycache__' -exec rm -rf {} + || true",
-                                "find /asset-output -type f -name '*.so' -exec strip {} + || true",
+                                "find /asset-output -type f -name '*.pyc' "
+                                "-delete || true",
+                                "find /asset-output -type d -name '__pycache__' "
+                                "-exec rm -rf {} + || true",
+                                "find /asset-output -type f -name '*.so' "
+                                "-exec strip {} + || true",
                                 "ls -la /asset-output/python/ || true",
-                                "python -c \"import sys; sys.path.insert(0, '/asset-output/python'); import aws_xray_sdk; print('✅ aws-xray-sdk installed successfully')\" || echo '❌ aws-xray-sdk import failed'",
+                                (
+                                    'python -c "import sys; '
+                                    "sys.path.insert(0, '/asset-output/python'); "
+                                    "import aws_xray_sdk; "
+                                    "print('✅ aws-xray-sdk installed successfully')\" "
+                                    "|| echo '❌ aws-xray-sdk import failed'"
+                                ),
                             ]
                         ),
                     ],
@@ -279,8 +289,8 @@ class UnfurlServiceStack(Stack):
 
         # Update unfurl processor environment with video proxy endpoint
         unfurl_processor.add_environment(
-            "VIDEO_PROXY_BASE_URL", 
-            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/prod"
+            "VIDEO_PROXY_BASE_URL",
+            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/prod",
         )
 
         # Slack events endpoint
@@ -306,7 +316,7 @@ class UnfurlServiceStack(Stack):
         # Video proxy endpoint for Slack Video Block support
         video_resource = api.root.add_resource("video")
         video_url_resource = video_resource.add_resource("{video_url}")
-        
+
         video_url_resource.add_method(
             "GET",
             apigw.LambdaIntegration(
