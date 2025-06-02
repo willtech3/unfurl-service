@@ -359,6 +359,9 @@ class PlaywrightScraper(BaseScraper):
                     True  # Indicate this should be playable in Slack
                 )
 
+            # Extract additional data from page JavaScript and elements
+            self._extract_enhanced_page_data(soup, data)
+
             # Ensure we have at least basic data
             if not any(
                 key in data for key in ["title", "caption", "image_url", "video_url"]
@@ -370,6 +373,184 @@ class PlaywrightScraper(BaseScraper):
         except Exception as e:
             self.logger.error(f"Error extracting data: {str(e)}")
             return None
+
+    def _extract_enhanced_page_data(
+        self, soup: BeautifulSoup, data: Dict[str, Any]
+    ) -> None:
+        """Extract additional data from page scripts and elements."""
+        try:
+            # Look for Instagram's shared data in page scripts
+            scripts = soup.find_all("script")
+            for script in scripts:
+                if script.string and "window._sharedData" in script.string:
+                    self._parse_shared_data(script.string, data)
+                    break
+                elif script.string and '"GraphSidecar"' in script.string:
+                    self._parse_graph_data(script.string, data)
+                elif script.string and '"shortcode_media"' in script.string:
+                    self._parse_shortcode_data(script.string, data)
+
+            # Additional video detection from page elements
+            self._detect_video_elements(soup, data)
+
+            # Extract from additional meta tags
+            self._extract_additional_meta_tags(soup, data)
+
+        except Exception as e:
+            self.logger.debug(f"Enhanced page data extraction failed: {e}")
+
+    def _parse_shared_data(self, script_content: str, data: Dict[str, Any]) -> None:
+        """Parse Instagram's _sharedData for rich metadata."""
+        try:
+            import json
+            import re
+
+            # Extract JSON from window._sharedData
+            match = re.search(r"window\._sharedData\s*=\s*({.+?});", script_content)
+            if not match:
+                return
+
+            shared_data = json.loads(match.group(1))
+
+            # Navigate through the shared data structure
+            entry_data = shared_data.get("entry_data", {})
+            post_page = entry_data.get("PostPage", [])
+
+            if post_page and len(post_page) > 0:
+                media = post_page[0].get("graphql", {}).get("shortcode_media", {})
+                self._extract_media_data(media, data)
+
+        except Exception as e:
+            self.logger.debug(f"Shared data parsing failed: {e}")
+
+    def _parse_graph_data(self, script_content: str, data: Dict[str, Any]) -> None:
+        """Parse GraphQL data from page scripts."""
+        try:
+            import json
+            import re
+
+            # Look for GraphQL response data
+            json_matches = re.finditer(
+                r'(\{[^{}]*"GraphSidecar"[^{}]*\})', script_content
+            )
+            for match in json_matches:
+                try:
+                    graph_data = json.loads(match.group(1))
+                    self._extract_media_data(graph_data, data)
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        except Exception as e:
+            self.logger.debug(f"Graph data parsing failed: {e}")
+
+    def _parse_shortcode_data(self, script_content: str, data: Dict[str, Any]) -> None:
+        """Parse shortcode_media data from page scripts."""
+        try:
+            import json
+            import re
+
+            # Look for shortcode_media JSON data
+            matches = re.finditer(
+                r'"shortcode_media":\s*({[^}]+(?:{[^}]*}[^}]*)*})', script_content
+            )
+            for match in matches:
+                try:
+                    # Extract the JSON object
+                    media_json = match.group(1)
+                    media_data = json.loads(media_json)
+                    self._extract_media_data(media_data, data)
+                    break
+                except json.JSONDecodeError:
+                    continue
+
+        except Exception as e:
+            self.logger.debug(f"Shortcode data parsing failed: {e}")
+
+    def _extract_media_data(
+        self, media_data: Dict[str, Any], data: Dict[str, Any]
+    ) -> None:
+        """Extract data from Instagram media object."""
+        try:
+            # Extract owner information
+            owner = media_data.get("owner", {})
+            if owner and not data.get("username"):
+                data["username"] = owner.get("username")
+                if owner.get("is_verified"):
+                    data["is_verified"] = True
+                if owner.get("full_name"):
+                    data["full_name"] = owner.get("full_name")
+
+            # Extract engagement data
+            if "edge_media_preview_like" in media_data and not data.get("likes"):
+                data["likes"] = media_data["edge_media_preview_like"].get("count", 0)
+
+            if "edge_media_to_comment" in media_data and not data.get("comments"):
+                data["comments"] = media_data["edge_media_to_comment"].get("count", 0)
+
+            # Extract caption
+            caption_edges = media_data.get("edge_media_to_caption", {}).get("edges", [])
+            if caption_edges and not data.get("caption"):
+                caption_node = caption_edges[0].get("node", {})
+                data["caption"] = caption_node.get("text", "")
+
+            # Extract video URL
+            if media_data.get("is_video") and not data.get("video_url"):
+                data["video_url"] = media_data.get("video_url")
+                data["is_video"] = True
+                data["content_type"] = "video"
+
+            # Extract timestamp
+            if media_data.get("taken_at_timestamp") and not data.get("timestamp"):
+                data["timestamp"] = media_data.get("taken_at_timestamp")
+
+        except Exception as e:
+            self.logger.debug(f"Media data extraction failed: {e}")
+
+    def _detect_video_elements(self, soup: BeautifulSoup, data: Dict[str, Any]) -> None:
+        """Detect video elements and URLs from page."""
+        try:
+            # Look for video elements
+            video_elements = soup.find_all("video")
+            for video in video_elements:
+                if video.get("src") and not data.get("video_url"):
+                    data["video_url"] = video.get("src")
+                    data["is_video"] = True
+                    data["content_type"] = "video"
+                    break
+
+                # Check poster attribute for video thumbnail
+                if video.get("poster") and not data.get("image_url"):
+                    data["image_url"] = video.get("poster")
+
+        except Exception as e:
+            self.logger.debug(f"Video element detection failed: {e}")
+
+    def _extract_additional_meta_tags(
+        self, soup: BeautifulSoup, data: Dict[str, Any]
+    ) -> None:
+        """Extract data from additional meta tags."""
+        try:
+            # Look for additional Twitter Card meta tags
+            video_meta_tags = [
+                ("twitter:player:stream", "video_url"),
+                ("twitter:player:stream:content_type", "video_content_type"),
+                ("twitter:image:alt", "image_alt"),
+            ]
+
+            for meta_name, data_key in video_meta_tags:
+                meta_tag = soup.find("meta", attrs={"name": meta_name})
+                if meta_tag and meta_tag.get("content") and not data.get(data_key):
+                    content = meta_tag.get("content")
+                    data[data_key] = content
+
+                    # Mark as video if we found a video stream
+                    if meta_name == "twitter:player:stream":
+                        data["is_video"] = True
+                        data["content_type"] = "video"
+
+        except Exception as e:
+            self.logger.debug(f"Additional meta tag extraction failed: {e}")
 
     def _parse_engagement_data(self, description: str, data: Dict[str, Any]) -> None:
         """Parse likes and comments from description text."""

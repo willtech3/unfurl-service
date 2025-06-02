@@ -214,9 +214,7 @@ def update_environment_variables(outputs: str) -> None:
 
 def main_deploy() -> None:
     """Main deployment function."""
-    parser = argparse.ArgumentParser(
-        description="Deploy Instagram video proxy to AWS"
-    )
+    parser = argparse.ArgumentParser(description="Deploy Instagram video proxy to AWS")
     parser.add_argument(
         "--environment",
         default="dev",
@@ -276,4 +274,5 @@ def main_deploy() -> None:
 
 if __name__ == "__main__":
     import argparse
+
     main_deploy()

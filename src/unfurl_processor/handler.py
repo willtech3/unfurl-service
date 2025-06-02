@@ -3,7 +3,7 @@ import os
 import re
 import secrets
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
@@ -200,7 +200,7 @@ def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
                 "url": url,
                 "unfurl_data": unfurl_data,
                 "ttl": ttl,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -624,7 +624,7 @@ def fetch_instagram_oembed(url: str) -> Optional[Dict[str, Any]]:
         return {
             "id": extract_post_id(url),
             "permalink": url,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "likes": None,
             "comments": None,
             "media_url": (
@@ -816,7 +816,7 @@ def create_fallback_unfurl(url: str) -> Dict[str, Any]:
     fallback_data = {
         "id": post_id,
         "permalink": url,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "likes": None,
         "comments": None,
         "media_url": None,
@@ -1100,7 +1100,7 @@ def extract_instagram_data(soup: BeautifulSoup, url: str) -> Optional[Dict[str, 
         data = {
             "id": extract_post_id(url),
             "permalink": url,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "likes": None,
             "comments": None,
         }

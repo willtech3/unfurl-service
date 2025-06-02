@@ -9,14 +9,38 @@ import time
 from typing import Any, Dict, cast
 
 import boto3
-from aws_lambda_powertools import Logger, Tracer
+from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 # Type imports for boto3
 from botocore.client import BaseClient
 
 logger = Logger()
-tracer = Tracer()
+
+# Initialize tracer if aws_xray_sdk is available
+tracer = None
+try:
+    from aws_lambda_powertools import Tracer
+
+    tracer = Tracer()
+except ImportError:
+    logger.warning("aws_xray_sdk not available, tracing disabled")
+
+    # Create a no-op tracer
+    class NoOpTracer:
+        def capture_lambda_handler(self, *args, **kwargs):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        def capture_method(self, *args, **kwargs):
+            def decorator(func):
+                return func
+
+            return decorator
+
+    tracer = NoOpTracer()
 
 # Only initialize metrics if not in test mode
 metrics = None

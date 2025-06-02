@@ -137,14 +137,11 @@ class SlackFormatter:
             # Header with Instagram branding and username
             username_text = f"*{username}*"
             if is_verified:
-                username_text += " ✓"
+                username_text += " "
 
             header_block = {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"📷 *Instagram*\n{username_text}",
-                },
+                "text": {"type": "mrkdwn", "text": f" *Instagram*\n{username_text}"},
                 "accessory": {
                     "type": "image",
                     "image_url": (
@@ -176,7 +173,7 @@ class SlackFormatter:
                 "alt_text": f"Instagram {content_type} by {username}",
                 "title": {
                     "type": "plain_text",
-                    "text": f"🎬 {content_type.title()} Content",
+                    "text": f" {content_type.title()} Content",
                 },
             }
 
@@ -211,7 +208,10 @@ class SlackFormatter:
             return {"color": "#E4405F", "blocks": blocks}
 
         except Exception as e:
-            self.logger.error(f"Failed to create Video Block unfurl: {e}")
+            logger.error(
+                f"Error creating Video Block unfurl: {e}",
+                extra={"error": str(e), "url": post_url},
+            )
             return None
 
     def _is_instagram_video_url(self, video_url: str) -> bool:
@@ -296,14 +296,11 @@ class SlackFormatter:
         # Header with Instagram branding and username
         username_text = f"*{username}*"
         if is_verified:
-            username_text += " ✓"
+            username_text += " "
 
         header_block = {
             "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"📷 *Instagram*\n{username_text}",
-            },
+            "text": {"type": "mrkdwn", "text": f" *Instagram*\n{username_text}"},
             "accessory": {
                 "type": "image",
                 "image_url": (
@@ -338,7 +335,7 @@ class SlackFormatter:
             if content_type in ["video", "reel"]:
                 image_block["title"] = {
                     "type": "plain_text",
-                    "text": f"🎬 {content_type.title()}",
+                    "text": f" {content_type.title()}",
                 }
 
             blocks.append(image_block)

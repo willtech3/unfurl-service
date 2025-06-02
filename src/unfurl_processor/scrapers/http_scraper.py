@@ -243,6 +243,30 @@ class HttpScraper(BaseScraper):
             twitter_description = soup.find(
                 "meta", attrs={"name": "twitter:description"}
             )
+            twitter_player = soup.find("meta", attrs={"name": "twitter:player"})
+            twitter_player_stream = soup.find(
+                "meta", attrs={"name": "twitter:player:stream"}
+            )
+
+            # Determine if this is video content
+            is_video_content = False
+            video_url = None
+
+            # Multiple video detection strategies
+            if og_video and og_video.get("content"):
+                video_url = og_video.get("content")
+                is_video_content = True
+            elif twitter_player and twitter_player.get("content"):
+                video_url = twitter_player.get("content")
+                is_video_content = True
+            elif twitter_player_stream and twitter_player_stream.get("content"):
+                video_url = twitter_player_stream.get("content")
+                is_video_content = True
+            elif "/reel/" in url or "/tv/" in url:
+                # Instagram Reels and IGTV are always video content
+                is_video_content = True
+            elif og_type and "video" in og_type.get("content", "").lower():
+                is_video_content = True
 
             data = {
                 "post_id": self.extract_post_id(url),
@@ -252,7 +276,7 @@ class HttpScraper(BaseScraper):
                     if og_image
                     else twitter_image.get("content") if twitter_image else None
                 ),
-                "video_url": og_video.get("content") if og_video else None,
+                "video_url": video_url,
                 "title": (
                     og_title.get("content")
                     if og_title
@@ -267,7 +291,8 @@ class HttpScraper(BaseScraper):
                         else None
                     )
                 ),
-                "content_type": og_type.get("content") if og_type else "photo",
+                "content_type": "video" if is_video_content else "photo",
+                "is_video": is_video_content,  # Add explicit video flag
                 "username": None,
                 "caption": None,
                 "likes": None,
@@ -304,24 +329,82 @@ class HttpScraper(BaseScraper):
         try:
             import re
 
-            # Pattern: "123 Likes, 45 Comments - username on Instagram: "caption""
-            pattern = (
-                r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$'
-            )
-            match = re.match(pattern, description)
+            # Enhanced patterns for Instagram descriptions
+            patterns = [
+                # Pattern 1: "123 Likes, 45 Comments - username on Instagram: "caption""
+                r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$',
+                # Pattern 2: "See Instagram photos and videos from username (@handle)"
+                r"See Instagram photos and videos from (.+?) \(@([^)]+)\)",
+                # Pattern 3: "username on Instagram: "caption""
+                r'^(.+?) on Instagram: "(.+)"$',
+                # Pattern 4: "@username • Instagram photos and videos"
+                r"^@([^\s•]+?)\s*•\s*Instagram",
+                # Pattern 5: Just engagement numbers
+                r"([\d,]+)\s+likes?,\s*([\d,]+)\s+comments?",
+                # Pattern 6: Username in title format
+                r"^([^:•\-]+?)\s*[\-•:]\s*Instagram",
+            ]
 
-            if match:
-                data["likes"] = int(match.group(1).replace(",", ""))
-                data["comments"] = int(match.group(2).replace(",", ""))
-                data["username"] = match.group(3)
-                data["caption"] = match.group(4)
-            else:
-                # Fallback: split by " on Instagram: "
-                if " on Instagram: " in description:
-                    parts = description.split(" on Instagram: ", 1)
-                    if len(parts) == 2:
-                        data["username"] = parts[0].strip()
-                        data["caption"] = parts[1].strip().strip('"')
+            for i, pattern in enumerate(patterns):
+                match = re.search(pattern, description, re.IGNORECASE)
+                if match:
+                    if i == 0:  # Full pattern with engagement
+                        data["likes"] = int(match.group(1).replace(",", ""))
+                        data["comments"] = int(match.group(2).replace(",", ""))
+                        data["username"] = match.group(3).strip()
+                        data["caption"] = match.group(4).strip()
+                        break
+                    elif i == 1:  # Instagram profile pattern
+                        data["username"] = match.group(1).strip()
+                        # Try to extract handle if different
+                        handle = match.group(2).strip()
+                        if handle != data["username"]:
+                            data["handle"] = handle
+                        break
+                    elif i == 2:  # Username and caption
+                        data["username"] = match.group(1).strip()
+                        data["caption"] = match.group(2).strip()
+                        break
+                    elif i == 3:  # Handle format
+                        data["username"] = match.group(1).strip()
+                        break
+                    elif i == 4:  # Just engagement numbers
+                        data["likes"] = int(match.group(1).replace(",", ""))
+                        data["comments"] = int(match.group(2).replace(",", ""))
+                        break
+                    elif i == 5:  # Username from title
+                        data["username"] = match.group(1).strip()
+                        break
+
+            # Separate extraction for engagement numbers if not found above
+            if not data.get("likes"):
+                likes_patterns = [
+                    r"([\d,]+)\s+likes?",
+                    r"♥\s*([\d,]+)",
+                    r"❤\s*([\d,]+)",
+                ]
+                for pattern in likes_patterns:
+                    match = re.search(pattern, description, re.IGNORECASE)
+                    if match:
+                        try:
+                            data["likes"] = int(match.group(1).replace(",", ""))
+                            break
+                        except ValueError:
+                            continue
+
+            if not data.get("comments"):
+                comment_patterns = [
+                    r"([\d,]+)\s+comments?",
+                    r"💬\s*([\d,]+)",
+                ]
+                for pattern in comment_patterns:
+                    match = re.search(pattern, description, re.IGNORECASE)
+                    if match:
+                        try:
+                            data["comments"] = int(match.group(1).replace(",", ""))
+                            break
+                        except ValueError:
+                            continue
 
         except Exception as e:
             self.logger.debug(f"Description parsing failed: {e}")
@@ -337,27 +420,71 @@ class HttpScraper(BaseScraper):
 
                     ld_data = json.loads(script.string)
                     if isinstance(ld_data, dict):
+                        # Extract author information
                         if "author" in ld_data and not data.get("username"):
                             if isinstance(ld_data["author"], dict):
                                 data["username"] = ld_data["author"].get("name")
+                                if "url" in ld_data["author"]:
+                                    data["profile_url"] = ld_data["author"]["url"]
                             elif isinstance(ld_data["author"], str):
                                 data["username"] = ld_data["author"]
 
+                        # Extract caption/headline
                         if "headline" in ld_data and not data.get("caption"):
                             data["caption"] = ld_data["headline"]
+                        elif "description" in ld_data and not data.get("caption"):
+                            data["caption"] = ld_data["description"]
 
+                        # Extract engagement statistics
                         if "interactionStatistic" in ld_data:
                             for stat in ld_data["interactionStatistic"]:
-                                if stat.get(
-                                    "interactionType"
-                                ) == "LikeAction" and not data.get("likes"):
-                                    data["likes"] = stat.get("userInteractionCount")
-                                elif stat.get(
-                                    "interactionType"
-                                ) == "CommentAction" and not data.get("comments"):
-                                    data["comments"] = stat.get("userInteractionCount")
+                                interaction_type = stat.get("interactionType", "")
+                                count = stat.get("userInteractionCount", 0)
+
+                                if "LikeAction" in interaction_type and not data.get(
+                                    "likes"
+                                ):
+                                    try:
+                                        data["likes"] = int(count)
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif (
+                                    "CommentAction" in interaction_type
+                                    and not data.get("comments")
+                                ):
+                                    try:
+                                        data["comments"] = int(count)
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif "ShareAction" in interaction_type:
+                                    try:
+                                        data["shares"] = int(count)
+                                    except (ValueError, TypeError):
+                                        pass
+
+                        # Extract media information
+                        if "video" in ld_data and not data.get("video_url"):
+                            video_data = ld_data["video"]
+                            if isinstance(video_data, dict):
+                                if "contentUrl" in video_data:
+                                    data["video_url"] = video_data["contentUrl"]
+                                elif "url" in video_data:
+                                    data["video_url"] = video_data["url"]
+                                # Mark as video content
+                                data["is_video"] = True
+                                data["content_type"] = "video"
+
+                        # Extract timestamps
+                        if "datePublished" in ld_data and not data.get("timestamp"):
+                            data["timestamp"] = ld_data["datePublished"]
+                        elif "uploadDate" in ld_data and not data.get("timestamp"):
+                            data["timestamp"] = ld_data["uploadDate"]
+
                 except (json.JSONDecodeError, AttributeError):
                     continue
+
+            # Additional video detection strategies
+            self._detect_additional_video_sources(soup, data)
 
             # Check page title for additional context
             title_tag = soup.find("title")
@@ -371,6 +498,39 @@ class HttpScraper(BaseScraper):
 
         except Exception as e:
             self.logger.debug(f"Enhanced data extraction failed: {e}")
+
+    def _detect_additional_video_sources(
+        self, soup: BeautifulSoup, data: Dict[str, Any]
+    ) -> None:
+        """Detect additional video sources from page elements."""
+        try:
+            # Look for video elements
+            video_elements = soup.find_all("video")
+            for video in video_elements:
+                if video.get("src") and not data.get("video_url"):
+                    data["video_url"] = video.get("src")
+                    data["is_video"] = True
+                    break
+
+                # Check source elements within video
+                sources = video.find_all("source")
+                for source in sources:
+                    if source.get("src") and not data.get("video_url"):
+                        data["video_url"] = source.get("src")
+                        data["is_video"] = True
+                        break
+
+            # Look for data attributes that might contain video URLs
+            video_containers = soup.find_all(attrs={"data-video-url": True})
+            for container in video_containers:
+                video_url = container.get("data-video-url")
+                if video_url and not data.get("video_url"):
+                    data["video_url"] = video_url
+                    data["is_video"] = True
+                    break
+
+        except Exception as e:
+            self.logger.debug(f"Additional video detection failed: {e}")
 
     def _extract_verification_status(
         self, soup: BeautifulSoup, data: Dict[str, Any]

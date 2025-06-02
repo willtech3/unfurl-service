@@ -175,15 +175,29 @@ class OEmbedScraper(BaseScraper):
             thumbnail_url = oembed_data.get("thumbnail_url", "")
             html = oembed_data.get("html", "")
 
-            # Parse HTML for additional metadata
-            video_url = None
-            if html and "video" in html.lower():
+            # Try to extract video URL from HTML
+            if html:
                 # Try to extract video URL from HTML
                 import re
 
-                video_match = re.search(r'src="([^"]*\.mp4[^"]*)"', html)
-                if video_match:
-                    video_url = video_match.group(1)
+                # Multiple video URL patterns
+                video_patterns = [
+                    r'src="([^"]*\.mp4[^"]*)"',
+                    r'data-video-url="([^"]*)"',
+                    r'"videoUrl":"([^"]*)"',
+                    r'"video_url":"([^"]*)"',
+                    r'https://[^"]*instagram\.com[^"]*\.mp4[^"]*',
+                ]
+
+                video_url = None
+                for pattern in video_patterns:
+                    video_match = re.search(pattern, html)
+                    if video_match:
+                        video_url = video_match.group(1)
+                        break
+
+                # Enhanced data extraction from HTML
+                self._extract_additional_html_data(html, data={})
 
             data = {
                 "post_id": self.extract_post_id(url),
@@ -195,13 +209,19 @@ class OEmbedScraper(BaseScraper):
                     title if title else None
                 ),  # oEmbed often puts description in title
                 "content_type": "video" if video_url else "photo",
+                "is_video": bool(video_url),
                 "username": author_name if author_name else None,
+                "author": author_name if author_name else None,
                 "caption": self._extract_caption_from_title(title),
                 "likes": None,
                 "comments": None,
                 "timestamp": None,
                 "html": html,  # Include HTML for rich rendering
+                "scraper_name": self.name,
             }
+
+            # Extract engagement data from title/description
+            self._extract_engagement_from_text(title, data)
 
             # Only return if we have meaningful data
             if data.get("image_url") or data.get("video_url") or data.get("html"):
@@ -212,6 +232,87 @@ class OEmbedScraper(BaseScraper):
         except Exception as e:
             self.logger.warning(f"Failed to parse oEmbed data: {e}")
             return None
+
+    def _extract_additional_html_data(self, html: str, data: Dict[str, Any]) -> None:
+        """Extract additional data from oEmbed HTML content."""
+        try:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Look for video elements
+            video_elements = soup.find_all("video")
+            for video in video_elements:
+                if video.get("src") and not data.get("video_url"):
+                    data["video_url"] = video.get("src")
+                    data["is_video"] = True
+                    data["content_type"] = "video"
+                    break
+
+            # Look for additional data attributes
+            data_attrs = [
+                ("data-instgrm-permalink", "permalink"),
+                ("data-instgrm-caption", "caption"),
+                ("data-likes", "likes"),
+                ("data-comments", "comments"),
+            ]
+
+            for element in soup.find_all(
+                attrs=lambda x: x and any(attr in x for attr, _ in data_attrs)
+            ):
+                for attr_name, data_key in data_attrs:
+                    if element.get(attr_name) and not data.get(data_key):
+                        value = element.get(attr_name)
+                        if data_key in ["likes", "comments"]:
+                            try:
+                                data[data_key] = int(value)
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            data[data_key] = value
+
+        except Exception as e:
+            self.logger.debug(f"Additional HTML data extraction failed: {e}")
+
+    def _extract_engagement_from_text(self, text: str, data: Dict[str, Any]) -> None:
+        """Extract engagement data from text content."""
+        if not text:
+            return
+
+        try:
+            import re
+
+            # Pattern: "123 Likes, 45 Comments"
+            engagement_pattern = r"([\d,]+)\s+Likes?,\s*([\d,]+)\s+Comments?"
+            match = re.search(engagement_pattern, text, re.IGNORECASE)
+            if match:
+                try:
+                    data["likes"] = int(match.group(1).replace(",", ""))
+                    data["comments"] = int(match.group(2).replace(",", ""))
+                except (ValueError, TypeError):
+                    pass
+
+            # Separate patterns for individual metrics
+            if not data.get("likes"):
+                likes_pattern = r"([\d,]+)\s+likes?"
+                match = re.search(likes_pattern, text, re.IGNORECASE)
+                if match:
+                    try:
+                        data["likes"] = int(match.group(1).replace(",", ""))
+                    except (ValueError, TypeError):
+                        pass
+
+            if not data.get("comments"):
+                comments_pattern = r"([\d,]+)\s+comments?"
+                match = re.search(comments_pattern, text, re.IGNORECASE)
+                if match:
+                    try:
+                        data["comments"] = int(match.group(1).replace(",", ""))
+                    except (ValueError, TypeError):
+                        pass
+
+        except Exception as e:
+            self.logger.debug(f"Engagement extraction failed: {e}")
 
     def _extract_caption_from_title(self, title: str) -> Optional[str]:
         """Extract caption from oEmbed title."""

@@ -401,6 +401,7 @@ class ScraperManager:
             "has_author": False,
             "has_engagement": False,
             "is_high_quality": False,
+            "has_rich_caption": False,
         }
 
         # Content richness (70 points max)
@@ -420,6 +421,16 @@ class ScraperManager:
             score += 40  # Videos are premium content
             quality_factors["has_video"] = True
 
+        # Additional video detection strategies
+        if data.get("video_url") or data.get("is_video"):
+            score += 15  # Direct video URL or video flag
+            quality_factors["has_video"] = True
+
+        # Check for video content indicators
+        content_type = data.get("content_type", "").lower()
+        if "video" in content_type or "reel" in content_type:
+            quality_factors["has_video"] = True
+
         images = data.get("images", [])
         if images:
             if len(images) > 1:
@@ -427,25 +438,45 @@ class ScraperManager:
                 quality_factors["has_multiple_images"] = True
             else:
                 score += 10  # Single image
+        elif data.get("image_url"):
+            score += 10  # Single image URL
 
         # Metadata richness (50 points max)
-        if data.get("author"):
+        if data.get("author") or data.get("username"):
             score += 15
             quality_factors["has_author"] = True
-        if data.get("timestamp") or data.get("created_at"):
+        if (
+            data.get("timestamp")
+            or data.get("created_at")
+            or data.get("taken_at_timestamp")
+        ):
             score += 10
         if any(
-            data.get(field) for field in ["like_count", "comment_count", "view_count"]
+            data.get(field)
+            for field in [
+                "like_count",
+                "comment_count",
+                "view_count",
+                "likes",
+                "comments",
+                "shares",
+            ]
         ):
             score += 15
             quality_factors["has_engagement"] = True
         if data.get("hashtags"):
             score += 10
 
-        # Technical quality indicators (35 points max)
-        if data.get("video_url"):
-            score += 15  # Direct video URL
+        # Caption/description quality
+        caption = data.get("caption", "") or data.get("description", "")
+        if caption:
+            if len(caption) > 100:
+                score += 10  # Rich caption
+                quality_factors["has_rich_caption"] = True
+            else:
+                score += 5  # Basic caption
 
+        # Technical quality indicators (35 points max)
         # Check for high-resolution indicators
         image_url = data.get("image_url", "")
         if any(
@@ -485,6 +516,22 @@ class ScraperManager:
                     1,
                     dimensions={"Factor": factor, "Scraper": result.method},
                 )
+
+        # Set has_video based on content analysis
+        has_video = (
+            quality_factors.get("has_video", False)
+            or bool(data.get("video_url"))
+            or bool(data.get("is_video"))
+            or "video" in data.get("content_type", "").lower()
+            or "reel" in data.get("content_type", "").lower()
+            or len(data.get("videos", [])) > 0
+        )
+
+        # Update the result data with the has_video flag
+        if hasattr(result.data, "update"):
+            result.data.update({"has_video": has_video})
+        elif isinstance(result.data, dict):
+            result.data["has_video"] = has_video
 
         return score
 
