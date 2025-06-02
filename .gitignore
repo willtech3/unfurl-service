@@ -236,3 +236,16 @@ dmypy.json
 
 # Secrets
 .secrets.*
+
+# CDK deploy artifacts
+cdk-deploy-out/
+
+# Temporary files
+*.tmp
+debug_*.py
+test_*.py
+test-*.json
+*.b64
+fix_*.txt
+synth*.yaml
+setup-*.sh

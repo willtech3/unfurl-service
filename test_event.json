@@ -1,9 +1,0 @@
-{
-  "Records": [
-    {
-      "Sns": {
-        "Message": "{\"channel\": \"C123TEST\", \"message_ts\": \"1733099280.123\", \"links\": [{\"domain\": \"instagram.com\", \"url\": \"https://www.instagram.com/p/DBmTv9zPq-4/\"}]}"
-      }
-    }
-  ]
-}

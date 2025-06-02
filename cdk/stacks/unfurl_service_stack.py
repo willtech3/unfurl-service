@@ -17,6 +17,7 @@ from aws_cdk import (
 from constructs import Construct
 import os
 
+
 class UnfurlServiceStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -63,7 +64,6 @@ class UnfurlServiceStack(Stack):
         slack_secret = sm.Secret.from_secret_name_v2(
             self, "SlackSecret", "unfurl-service/slack"
         )
-
 
         # Lambda layer for shared dependencies (only for event router)
         deps_layer = lambda_.LayerVersion(
@@ -128,20 +128,32 @@ class UnfurlServiceStack(Stack):
             architecture=lambda_.Architecture.ARM_64,
             handler=lambda_.Handler.FROM_IMAGE,
             code=lambda_.Code.from_asset_image(
-                directory=".", 
+                directory=".",
                 platform=ecr_assets.Platform.LINUX_ARM64,
-                build_args={
-                    "DOCKER_BUILDKIT": "1",
-                    "BUILDKIT_INLINE_CACHE": "1",
-                },
+                build_args={"DOCKER_BUILDKIT": "1", "BUILDKIT_INLINE_CACHE": "1",},
                 # Exclude everything except essential files for faster upload
                 exclude=[
-                    "cdk.out", "cdk-deploy-out", "node_modules", ".git", "__pycache__", 
-                    "*.pyc", ".pytest_cache", ".venv", "*.md", "docs/", "tests/",
-                    ".github/", "*.log", "*.tmp", ".DS_Store", "response.json",
-                    "test-payload.json", ".dockerignore.bak", "Dockerfile.base", 
-                    "Dockerfile.fast"
-                ]
+                    "cdk.out",
+                    "cdk-deploy-out",
+                    "node_modules",
+                    ".git",
+                    "__pycache__",
+                    "*.pyc",
+                    ".pytest_cache",
+                    ".venv",
+                    "*.md",
+                    "docs/",
+                    "tests/",
+                    ".github/",
+                    "*.log",
+                    "*.tmp",
+                    ".DS_Store",
+                    "response.json",
+                    "test-payload.json",
+                    ".dockerignore.bak",
+                    "Dockerfile.base",
+                    "Dockerfile.fast",
+                ],
             ),
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
@@ -174,10 +186,7 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(
-                unfurl_processor,
-                dead_letter_queue=dlq,
-            )
+            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
         )
 
         # API Gateway for Slack events
@@ -218,8 +227,7 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200",
-                        response_templates={"application/json": ""},
+                        status_code="200", response_templates={"application/json": ""},
                     )
                 ],
             ),
