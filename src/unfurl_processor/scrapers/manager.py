@@ -53,21 +53,29 @@ class ScraperManager:
 
     async def scrape_instagram_data(self, url: str) -> ScrapingResult:
         """
-        Scrape Instagram data using intelligent fallback strategy.
+        Scrape Instagram data using all scrapers and select the richest result.
 
-        Fallback order:
-        1. Playwright browser automation (best bot evasion)
-        2. HTTP scraping with enhanced headers
-        3. oEmbed Instagram Graph API
+        Strategy:
+        1. Execute all scrapers (Playwright, HTTP, oEmbed) concurrently/sequentially
+        2. Compare successful results using quality scoring algorithm
+        3. Return the result with the highest quality score (richest content)
+
+        Quality scoring considers:
+        - Content richness (caption, description, title)
+        - Media availability (images, videos)
+        - Metadata completeness (author, timestamps, engagement)
+        - Technical quality (high-res images, direct video URLs)
+        - Data source reliability (official API vs scraping)
 
         Args:
             url: Instagram URL to scrape
 
         Returns:
-            ScrapingResult with data from the first successful scraper
+            ScrapingResult with data from the richest scraper
         """
         start_time = time.time()
         errors = []
+        results = []
 
         self.logger.info(f"🔍 Starting intelligent scraping for: {url}")
 
@@ -89,51 +97,56 @@ class ScraperManager:
                     )
 
                 if result.success and result.data:
-                    total_time = self.measure_time(start_time)
-                    scraper_success_msg = f"✅ Success with {scraper.name}"
-                    attempt_msg = f"(attempt {i}/{len(self.scrapers)})"
-                    time_msg = f"in {result.response_time_ms}ms (total: {total_time}ms)"
-                    self.logger.info(f"{scraper_success_msg} {attempt_msg} {time_msg}")
-                    # Add manager metadata
-                    result.data["scraper_attempts"] = i
-                    result.data["total_response_time_ms"] = total_time
-                    result.data["fallback_errors"] = errors.copy()
-
-                    return result
+                    results.append(result)
                 else:
                     error_msg = f"{scraper.name} failed: {result.error}"
                     errors.append(error_msg)
                     self.logger.warning(f"❌ {error_msg}")
-
-                    # Add small delay between attempts to avoid rate limiting
-                    if i < len(self.scrapers):
-                        await asyncio.sleep(0.5)
 
             except Exception as e:
                 error_msg = f"{scraper.name} exception: {str(e)}"
                 errors.append(error_msg)
                 self.logger.error(f"💥 {error_msg}")
 
-                # Continue to next scraper
-                if i < len(self.scrapers):
-                    await asyncio.sleep(0.5)
+        # Select the richest result
+        if results:
+            richest_result = max(results, key=self.calculate_quality_score)
+            total_time = self.measure_time(start_time)
 
-        # All scrapers failed
-        total_time = self.measure_time(start_time)
-        self.logger.error(f"❌ All {len(self.scrapers)} scrapers failed for {url}")
+            # Log quality comparison
+            for result in results:
+                score = self.calculate_quality_score(result)
+                self.logger.info(f"📊 {result.method}: quality score {score}")
 
-        return ScrapingResult(
-            success=False,
-            error=f"All scrapers failed: {'; '.join(errors)}",
-            method="manager_fallback",
-            response_time_ms=total_time,
-            data={
-                "scraper_attempts": len(self.scrapers),
-                "total_response_time_ms": total_time,
-                "fallback_errors": errors,
-                "url": url,
-            },
-        )
+            best_score = self.calculate_quality_score(richest_result)
+            scraper_success_msg = f"✅ Best quality: {richest_result.method} (score: {best_score})"
+            time_msg = f"in {richest_result.response_time_ms}ms (total: {total_time}ms)"
+            self.logger.info(f"{scraper_success_msg} {time_msg}")
+
+            # Add manager metadata
+            richest_result.data["scraper_attempts"] = len(self.scrapers)
+            richest_result.data["total_response_time_ms"] = total_time
+            richest_result.data["quality_score"] = best_score
+            richest_result.data["fallback_errors"] = errors.copy()
+
+            return richest_result
+        else:
+            # All scrapers failed
+            total_time = self.measure_time(start_time)
+            self.logger.error(f"❌ All {len(self.scrapers)} scrapers failed for {url}")
+
+            return ScrapingResult(
+                success=False,
+                error=f"All scrapers failed: {'; '.join(errors)}",
+                method="manager_fallback",
+                response_time_ms=total_time,
+                data={
+                    "scraper_attempts": len(self.scrapers),
+                    "total_response_time_ms": total_time,
+                    "fallback_errors": errors,
+                    "url": url,
+                },
+            )
 
     async def scrape_multiple_urls(
         self, urls: List[str], max_concurrent: int = 3
@@ -269,6 +282,68 @@ class ScraperManager:
                 for scraper in self.scrapers
             },
         }
+
+    def calculate_quality_score(self, result: ScrapingResult) -> int:
+        """
+        Calculate quality score for a scraping result based on richness of data.
+        Higher score = richer content.
+
+        Args:
+            result: ScrapingResult to evaluate
+
+        Returns:
+            Quality score (higher is better)
+        """
+        if not result.success or not result.data:
+            return 0
+
+        score = 0
+        data = result.data
+
+        # Core content scoring (highest weight)
+        if data.get("caption"):
+            score += 30  # Rich caption text
+        if data.get("description"):
+            score += 25  # Description text
+        if data.get("title"):
+            score += 15  # Title
+
+        # Media content (high value)
+        images = data.get("images", [])
+        videos = data.get("videos", [])
+        if videos:
+            score += 40  # Video content (highest value)
+        if images:
+            score += 20 + min(len(images) * 5, 20)  # Multiple images bonus
+
+        # Metadata richness
+        if data.get("author"):
+            score += 10  # Author information
+        if data.get("timestamp") or data.get("created_time"):
+            score += 8  # Timestamp
+        if data.get("like_count") or data.get("view_count"):
+            score += 8  # Engagement metrics
+        if data.get("comment_count"):
+            score += 5  # Comment count
+
+        # Technical quality indicators
+        if data.get("high_res_images"):
+            score += 10  # High resolution images
+        if data.get("video_url"):
+            score += 15  # Direct video URL
+        if data.get("thumbnail_url"):
+            score += 5  # Thumbnail
+
+        # Data source reliability bonus
+        source = result.method or ""
+        if "oembed" in source.lower():
+            score += 15  # Official API bonus
+        elif "playwright" in source.lower():
+            score += 10  # Browser automation bonus
+        elif "http" in source.lower():
+            score += 5  # HTTP scraping
+
+        return score
 
     def __del__(self):
         """Ensure cleanup on destruction."""
