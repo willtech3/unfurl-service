@@ -127,7 +127,9 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             instagram_links = [
                 {
                     **link,
-                    "url": html.unescape(link.get("url", ""))  # Decode HTML entities like &amp; -> &
+                    "url": html.unescape(
+                        link.get("url", "")
+                    ),  # Decode HTML entities like &amp; -> &
                 }
                 for link in links
                 if link.get("domain") in ["instagram.com", "www.instagram.com"]
