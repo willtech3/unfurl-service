@@ -146,6 +146,33 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         event_type = event_data.get("type")
 
         if event_type == "link_shared":
+            # Slack emits a preliminary link_shared event while the user is still
+            # composing their message. These events have `channel="COMPOSER"` as a
+            # placeholder and **must not** be unfurled — attempting to do so results
+            # in Slack returning `cannot_unfurl_message` and prevents the real
+            # unfurl for the actual channel.  We therefore short-circuit early and
+            # mark the event as handled.
+
+            channel_id = event_data.get("channel")
+
+            if channel_id == "COMPOSER":
+                logger.info(
+                    "Ignoring COMPOSER link_shared event",
+                    extra={"links": event_data.get("links", [])},
+                )
+
+                if metrics:
+                    metrics.add_metric(
+                        name="ComposerEventsIgnored",
+                        unit=MetricUnit.Count,
+                        value=1,
+                    )
+
+                return {
+                    "statusCode": 200,
+                    "body": json.dumps({"ignored": "COMPOSER channel"}),
+                }
+
             # Process link_shared events
             links = event_data.get("links", [])
             instagram_links = [
