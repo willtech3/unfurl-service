@@ -10,11 +10,11 @@ from typing import Any, Dict, List, Optional
 import boto3
 from aws_lambda_powertools import Logger
 
+from ..merge_utils import merge_instagram_results
 from .base import BaseScraper, ScrapingResult
 from .http_scraper import HttpScraper
 from .oembed_scraper import OEmbedScraper
 from .playwright_scraper import PlaywrightScraper
-from ..merge_utils import merge_instagram_results
 
 logger = Logger()
 
@@ -184,10 +184,10 @@ class ScraperManager:
 
             # Log individual quality scores
             for score, res in scored:
-                self.logger.info(
-                    "📊 %s: quality score %s", res.method, score
+                self.logger.info("📊 %s: quality score %s", res.method, score)
+                self._emit_metric(
+                    "QualityScore", score, dimensions={"Scraper": res.method}
                 )
-                self._emit_metric("QualityScore", score, dimensions={"Scraper": res.method})
 
             # Merge field-level data in score order (highest first)
             merged_data = merge_instagram_results([r.data for _, r in scored])
@@ -220,7 +220,9 @@ class ScraperManager:
                 total_time,
                 len(results),
             )
-            self._emit_metric("BestQualityScraper", 1, dimensions={"Scraper": "aggregated"})
+            self._emit_metric(
+                "BestQualityScraper", 1, dimensions={"Scraper": "aggregated"}
+            )
             self._emit_metric("ScrapingTime", total_time, unit="Milliseconds")
 
             return aggregated_result

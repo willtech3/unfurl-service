@@ -4,7 +4,8 @@ import json
 import logging
 import os
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import boto3
 import requests
 from botocore.exceptions import ClientError
@@ -183,13 +184,7 @@ class VideoProxy:
 
             ttl = int(time.time()) + (6 * 3600)  # 6 hours TTL
 
-            table.put_item(
-                Item={
-                    "url": cache_key,
-                    "data": video_data,
-                    "ttl": ttl,
-                }
-            )
+            table.put_item(Item={"url": cache_key, "data": video_data, "ttl": ttl})
 
         except ClientError as e:
             logger.warning(f"Failed to cache video data: {e}")

@@ -23,11 +23,17 @@ from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
-from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.web.async_client import AsyncWebClient
 
+# Using AWS Lambda Powertools logger instead of src.logger
 from .scrapers.manager import ScraperManager
 from .slack_formatter import SlackFormatter
+
+# Type aliases for better readability
+SlackEvent = Dict[str, Any]
+UnfurlData = Dict[str, Any]
+UnfurlsDict = Dict[str, UnfurlData]
 
 # Initialize observability tools
 logger = Logger()
@@ -542,8 +548,8 @@ class AsyncUnfurlHandler:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - cleanup resources."""
-        if self.http_client:
+        if self.http_client is not None:
             await self.http_client.aclose()
 
-        if self.scraper_manager:
+        if self.scraper_manager is not None:
             await self.scraper_manager.cleanup()

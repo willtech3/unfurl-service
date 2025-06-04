@@ -3,6 +3,7 @@
 Provides `merge_instagram_results` which selects the first non-empty value for
 important fields across an ordered list of result dictionaries.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, List

@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from .base import BaseScraper, ScrapingResult
 
 try:
-    from playwright.async_api import async_playwright, Browser, BrowserContext
+    from playwright.async_api import Browser, BrowserContext, async_playwright
     from playwright_stealth import stealth_async
 
     PLAYWRIGHT_AVAILABLE = True

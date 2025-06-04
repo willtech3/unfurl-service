@@ -363,10 +363,13 @@ def main():
         ),
     )
     parser.add_argument(
-        "--environment", default="dev", help="Environment name (default: dev)",
+        "--environment",
+        default="dev",
+        help="Environment name (default: dev)",
     )
     parser.add_argument(
-        "--output", help="Output file for detailed results (JSON)",
+        "--output",
+        help="Output file for detailed results (JSON)",
     )
 
     args = parser.parse_args()

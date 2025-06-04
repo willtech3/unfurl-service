@@ -2,11 +2,18 @@
 
 import asyncio
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.unfurl_processor.handler_async import AsyncUnfurlHandler
 from src.unfurl_processor.scrapers.base import ScrapingResult
+
+
+# Python 3.7 compatibility
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 class TestAsyncUnfurlHandler:

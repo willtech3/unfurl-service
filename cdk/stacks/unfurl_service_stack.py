@@ -255,7 +255,10 @@ class UnfurlServiceStack(Stack):
         )
 
         unfurl_topic.add_subscription(
-            sns_subs.LambdaSubscription(unfurl_processor, dead_letter_queue=dlq,)
+            sns_subs.LambdaSubscription(
+                unfurl_processor,
+                dead_letter_queue=dlq,
+            )
         )
 
         # API Gateway for Slack events
@@ -302,7 +305,8 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200", response_templates={"application/json": ""},
+                        status_code="200",
+                        response_templates={"application/json": ""},
                     )
                 ],
             ),
@@ -320,7 +324,8 @@ class UnfurlServiceStack(Stack):
                 proxy=True,
                 integration_responses=[
                     apigw.IntegrationResponse(
-                        status_code="200", response_templates={"text/html": ""},
+                        status_code="200",
+                        response_templates={"text/html": ""},
                     )
                 ],
             ),
