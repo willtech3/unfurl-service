@@ -35,12 +35,15 @@ RUN pip install --no-cache-dir --upgrade pip && \
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
 ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:${PYTHONPATH}
 
-# Install Playwright browsers with explicit path
+# Install Playwright browsers with explicit path and verification
 RUN cd ${LAMBDA_TASK_ROOT} && \
     PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers \
     PYTHONPATH=${LAMBDA_TASK_ROOT} \
+    python -c "import playwright; print('Playwright imported successfully')" && \
     python -m playwright install chromium --with-deps && \
-    ls -la ${LAMBDA_TASK_ROOT}/playwright-browsers/ || echo "Browser installation directory not found"
+    ls -la ${LAMBDA_TASK_ROOT}/playwright-browsers/ && \
+    echo "Verifying browser installation..." && \
+    find ${LAMBDA_TASK_ROOT}/playwright-browsers -name "*chromium*" -type f | head -5
 
 # Optimize browser binaries for Lambda
 RUN find ${LAMBDA_TASK_ROOT} -type f -name "*.so" -exec strip {} \; 2>/dev/null || true && \

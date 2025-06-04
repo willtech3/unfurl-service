@@ -16,7 +16,8 @@ try:
     from playwright_stealth import stealth_async
 
     PLAYWRIGHT_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"Playwright import failed: {e}")
     PLAYWRIGHT_AVAILABLE = False
     async_playwright = None
     stealth_async = None
@@ -85,6 +86,20 @@ class PlaywrightScraper(BaseScraper):
                     browsers_path = os.environ.get(
                         "PLAYWRIGHT_BROWSERS_PATH", "/var/task/playwright-browsers"
                     )
+                    self.logger.info(f"Lambda environment detected. Browsers path: {browsers_path}")
+                    
+                    # Check if browsers directory exists
+                    if os.path.exists(browsers_path):
+                        self.logger.info(f"Browsers path exists: {browsers_path}")
+                        # List contents for debugging
+                        try:
+                            contents = os.listdir(browsers_path)
+                            self.logger.info(f"Browsers directory contents: {contents}")
+                        except Exception as e:
+                            self.logger.warning(f"Could not list browsers directory: {e}")
+                    else:
+                        self.logger.warning(f"Browsers path does not exist: {browsers_path}")
+                    
                     chromium_pattern = f"{browsers_path}/chromium-*/chrome-linux/chrome"
                     possible_paths = glob.glob(chromium_pattern)
                     if possible_paths:
