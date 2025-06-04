@@ -6,7 +6,7 @@
 # =====================================================
 # Using the official Playwright image ensures compatibility and includes all
 # necessary system dependencies (apt-get, etc.) for browser installation
-FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy as builder
+FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy as builder
 
 # Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1
@@ -82,12 +82,21 @@ COPY --from=builder /app ${LAMBDA_TASK_ROOT}
 # The browsers were installed in the build stage using the official Playwright image
 COPY --from=builder /ms-playwright ${PLAYWRIGHT_BROWSERS_PATH}
 
-# Verify Playwright installation
+# Verify Playwright installation and version consistency
 RUN echo "Verifying Playwright installation..." && \
     cd ${LAMBDA_TASK_ROOT} && \
     PYTHONPATH=${LAMBDA_TASK_ROOT} python -c \
-    "import sys; print('Python version:', sys.version); print('Python path:', sys.path[:3]); import playwright; print('✅ Playwright imported successfully, version:', getattr(playwright, '__version__', 'unknown')); print('Playwright location:', playwright.__file__)" || \
-    (echo "❌ Playwright import failed" && exit 1)
+    "import sys; print('Python version:', sys.version); print('Python path:', sys.path[:3]); import playwright; version = getattr(playwright, '__version__', 'unknown'); print('✅ Playwright imported successfully, version:', version); print('Playwright location:', playwright.__file__); \
+    import sys; \
+    if version == 'unknown': \
+        print('❌ Warning: Playwright version is unknown, this may cause import issues'); \
+        sys.exit(1); \
+    elif not version.startswith('1.45'): \
+        print(f'❌ Warning: Expected Playwright v1.45.x, got {version}'); \
+        sys.exit(1); \
+    else: \
+        print('✅ Playwright version check passed')" || \
+    (echo "❌ Playwright import or version check failed" && exit 1)
 
 # Verify browser installation (browsers are now copied from build stage)
 RUN echo "Verifying browser installation..." && \
@@ -136,12 +145,16 @@ RUN echo "Optimizing installation..." && \
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
 
-# Copy debug script for testing (if it exists)
-# COPY test_playwright_debug.py ${LAMBDA_TASK_ROOT}/
+# Copy test script for Playwright validation
+COPY test_playwright_fix.py ${LAMBDA_TASK_ROOT}/
 
 # Final verification that everything is working
 RUN echo "Final Playwright verification..." && \
     cd ${LAMBDA_TASK_ROOT} && \
+    PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH} \
+    PYTHONPATH=${LAMBDA_TASK_ROOT} \
+    python test_playwright_fix.py && \
+    echo "Running scraper module verification..." && \
     PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH} \
     PYTHONPATH=${LAMBDA_TASK_ROOT} \
     python -c "from unfurl_processor.scrapers.playwright_scraper import PLAYWRIGHT_AVAILABLE; print('PLAYWRIGHT_AVAILABLE from scraper:', PLAYWRIGHT_AVAILABLE); exit(0 if PLAYWRIGHT_AVAILABLE else 1)" && \

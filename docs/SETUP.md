@@ -193,6 +193,27 @@ make lock
 make clean
 ```
 
+## Python/Playwright Compatibility Matrix
+
+This service uses Playwright for web scraping with specific compatibility requirements:
+
+| Python Version | Playwright Version | Status | Notes |
+|---|---|---|---|
+| Python 3.12 | Playwright >= 1.45.0 | ✅ Supported | Full async_api support |
+| Python 3.12 | Playwright < 1.45.0 | ❌ Not Supported | async_api import fails |
+| Python 3.11 | Playwright >= 1.40.0 | ✅ Supported | Fully compatible |
+| Python 3.10 | Playwright >= 1.40.0 | ✅ Supported | Fully compatible |
+
+### Current Configuration
+- **Python**: 3.12.9 (AWS Lambda base image)
+- **Playwright**: 1.45.0 (requirements-docker.txt)
+- **Docker Image**: mcr.microsoft.com/playwright/python:v1.45.0-jammy
+
+### Key Requirements
+1. **Version Alignment**: Dockerfile build stage and requirements.txt must specify the same Playwright version
+2. **Python 3.12 Support**: Requires Playwright >= 1.45.0 for full async_api compatibility
+3. **Browser Installation**: Uses official Playwright Docker image for proper browser setup
+
 ## Troubleshooting
 
 ### Common Issues
@@ -217,6 +238,18 @@ make clean
 5. **uv installation issues**
    - Ensure you have curl installed
    - Try alternative installation methods from [uv documentation](https://github.com/astral-sh/uv)
+
+6. **Playwright async_api import errors**
+   - Ensure Playwright version in Dockerfile matches requirements-docker.txt
+   - For Python 3.12, use Playwright >= 1.45.0
+   - Run the included test: `python test_playwright_fix.py`
+   - Check that browser installation completed successfully
+
+7. **Playwright browser execution failures**
+   - Verify browsers are installed in correct path: `/var/task/playwright-browsers`
+   - Check PLAYWRIGHT_BROWSERS_PATH environment variable
+   - Ensure browser executables have proper permissions
+   - For Lambda, verify required system dependencies are installed
 
 ### Debug Mode
 Enable debug logging by setting environment variable:
