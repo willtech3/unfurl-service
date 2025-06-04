@@ -10,9 +10,24 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
 ENV PYTHONPATH=/var/task
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
-# Install comprehensive system dependencies for Playwright
+# Install comprehensive system dependencies for Playwright and build tools
 RUN dnf update -y && \
     dnf install -y \
+        # Build tools for Python C extensions
+        gcc \
+        gcc-c++ \
+        make \
+        cmake \
+        rust \
+        cargo \
+        # Development headers
+        python3-devel \
+        zlib-devel \
+        bzip2-devel \
+        xz-devel \
+        lz4-devel \
+        libzstd-devel \
+        # Basic utilities
         wget \
         ca-certificates \
         findutils \
@@ -46,11 +61,16 @@ RUN dnf update -y && \
 # Copy requirements and install Python dependencies with verbose output
 COPY requirements-docker.txt /tmp/requirements-docker.txt
 
-# Install Python packages with detailed logging
+# Install Python packages with detailed logging and wheel fallback
 RUN echo "Installing Python packages..." && \
-    pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --verbose --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt && \
-    echo "Python packages installed successfully"
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    # Try to install with prefer-binary first to use pre-compiled wheels
+    pip install --no-cache-dir --prefer-binary --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt && \
+    echo "Python packages installed successfully" && \
+    # Clean up build dependencies to reduce image size
+    dnf remove -y gcc gcc-c++ make cmake rust cargo python3-devel *-devel && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 # Verify Playwright installation
 RUN echo "Verifying Playwright installation..." && \
