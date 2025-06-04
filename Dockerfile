@@ -88,11 +88,21 @@ RUN echo "Verifying Playwright installation..." && \
     PYTHONPATH=${LAMBDA_TASK_ROOT} python - <<'PY'
 import sys, pathlib
 import playwright
-version = getattr(playwright, '__version__', 'unknown')
+import importlib.metadata as im
+
+# Try multiple methods to get Playwright version
+version = getattr(playwright, '__version__', None)
+if version is None:
+    try:
+        version = im.version('playwright')
+    except Exception:
+        version = 'unknown'
+
 print('Python version:', sys.version)
 print('Python path:', sys.path[:3])
 print('✅ Playwright imported successfully, version:', version)
 print('Playwright location:', pathlib.Path(playwright.__file__).resolve())
+
 if version == 'unknown':
     print('❌ Warning: Playwright version is unknown; this may cause import issues')
     sys.exit(1)
