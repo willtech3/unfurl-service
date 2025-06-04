@@ -14,7 +14,6 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 RUN dnf update -y && \
     dnf install -y \
         wget \
-        curl \
         ca-certificates \
         findutils \
         binutils \
