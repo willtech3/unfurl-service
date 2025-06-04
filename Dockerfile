@@ -2,42 +2,16 @@
 # Designed to resolve Docker build issues by separating build and runtime environments
 
 # =====================================================
-# Build Stage: Install Python packages and dependencies
+# Build Stage: Use official Playwright image for browser installation
 # =====================================================
-FROM public.ecr.aws/lambda/python:3.12-arm64 as builder
+# Using the official Playwright image ensures compatibility and includes all
+# necessary system dependencies (apt-get, etc.) for browser installation
+FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy as builder
 
 # Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1
 ENV DOCKER_BUILDKIT=1
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-
-# Install build dependencies (will be discarded after this stage)
-RUN dnf update -y && \
-    dnf install -y \
-        # Build tools for Python C extensions
-        gcc \
-        gcc-c++ \
-        make \
-        cmake \
-        rust \
-        cargo \
-        # Development headers
-        python3-devel \
-        zlib-devel \
-        bzip2-devel \
-        xz-devel \
-        lz4-devel \
-        libzstd-devel \
-        # Basic utilities needed for build
-        wget \
-        ca-certificates \
-        findutils \
-        binutils \
-        tar \
-        gzip \
-        unzip && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Copy requirements and install Python dependencies
 COPY requirements-docker.txt /tmp/requirements-docker.txt
@@ -48,6 +22,12 @@ RUN echo "Installing Python packages in build stage..." && \
     # Install packages to /app directory which we'll copy to runtime stage
     pip install --no-cache-dir --prefer-binary --target /app -r /tmp/requirements-docker.txt && \
     echo "Python packages installed successfully in build stage"
+
+# Install Playwright browsers (this will work properly with apt-get available)
+RUN echo "Installing Playwright browsers in build stage..." && \
+    cd /app && \
+    PYTHONPATH=/app python -m playwright install chromium --with-deps && \
+    echo "Browser installation completed successfully"
 
 # =====================================================
 # Runtime Stage: Clean Lambda environment
@@ -98,6 +78,10 @@ RUN dnf update -y && \
 # Copy installed Python packages from build stage
 COPY --from=builder /app ${LAMBDA_TASK_ROOT}
 
+# Copy Playwright browsers from build stage to Lambda task root
+# The browsers were installed in the build stage using the official Playwright image
+COPY --from=builder /ms-playwright ${PLAYWRIGHT_BROWSERS_PATH}
+
 # Verify Playwright installation
 RUN echo "Verifying Playwright installation..." && \
     cd ${LAMBDA_TASK_ROOT} && \
@@ -105,17 +89,8 @@ RUN echo "Verifying Playwright installation..." && \
     "import sys; print('Python version:', sys.version); print('Python path:', sys.path[:3]); import playwright; print('✅ Playwright imported successfully, version:', getattr(playwright, '__version__', 'unknown')); print('Playwright location:', playwright.__file__)" || \
     (echo "❌ Playwright import failed" && exit 1)
 
-# Install Playwright browsers with comprehensive logging and error handling
-RUN echo "Installing Playwright browsers..." && \
-    cd ${LAMBDA_TASK_ROOT} && \
-    mkdir -p ${PLAYWRIGHT_BROWSERS_PATH} && \
-    PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH} \
-    PYTHONPATH=${LAMBDA_TASK_ROOT} \
-    python -m playwright install --help && \
-    echo "Installing Chromium browser..." && \
-    PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH} \
-    PYTHONPATH=${LAMBDA_TASK_ROOT} \
-    python -m playwright install chromium --with-deps && \
+# Verify browser installation (browsers are now copied from build stage)
+RUN echo "Verifying browser installation..." && \
     echo "Browser installation completed, verifying..." && \
     ls -la ${PLAYWRIGHT_BROWSERS_PATH}/ && \
     echo "Searching for Chromium files..." && \
