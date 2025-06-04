@@ -85,18 +85,23 @@ COPY --from=builder /ms-playwright ${PLAYWRIGHT_BROWSERS_PATH}
 # Verify Playwright installation and version consistency
 RUN echo "Verifying Playwright installation..." && \
     cd ${LAMBDA_TASK_ROOT} && \
-    PYTHONPATH=${LAMBDA_TASK_ROOT} python -c \
-    "import sys; print('Python version:', sys.version); print('Python path:', sys.path[:3]); import playwright; version = getattr(playwright, '__version__', 'unknown'); print('✅ Playwright imported successfully, version:', version); print('Playwright location:', playwright.__file__); \
-    import sys; \
-    if version == 'unknown': \
-        print('❌ Warning: Playwright version is unknown, this may cause import issues'); \
-        sys.exit(1); \
-    elif not version.startswith('1.45'): \
-        print(f'❌ Warning: Expected Playwright v1.45.x, got {version}'); \
-        sys.exit(1); \
-    else: \
-        print('✅ Playwright version check passed')" || \
-    (echo "❌ Playwright import or version check failed" && exit 1)
+    PYTHONPATH=${LAMBDA_TASK_ROOT} python - <<'PY'
+import sys, pathlib
+import playwright
+version = getattr(playwright, '__version__', 'unknown')
+print('Python version:', sys.version)
+print('Python path:', sys.path[:3])
+print('✅ Playwright imported successfully, version:', version)
+print('Playwright location:', pathlib.Path(playwright.__file__).resolve())
+if version == 'unknown':
+    print('❌ Warning: Playwright version is unknown; this may cause import issues')
+    sys.exit(1)
+elif not version.startswith('1.45'):
+    print(f'❌ Warning: Expected Playwright v1.45.x, got {version}')
+    sys.exit(1)
+else:
+    print('✅ Playwright version check passed')
+PY
 
 # Verify browser installation (browsers are now copied from build stage)
 RUN echo "Verifying browser installation..." && \
