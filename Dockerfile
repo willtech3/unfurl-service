@@ -115,7 +115,7 @@ RUN echo "Installing Playwright browsers..." && \
     echo "Installing Chromium browser..." && \
     PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH} \
     PYTHONPATH=${LAMBDA_TASK_ROOT} \
-    python -m playwright install chromium --with-deps --verbose && \
+    python -m playwright install chromium --with-deps && \
     echo "Browser installation completed, verifying..." && \
     ls -la ${PLAYWRIGHT_BROWSERS_PATH}/ && \
     echo "Searching for Chromium files..." && \
