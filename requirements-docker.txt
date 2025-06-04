@@ -1,8 +1,9 @@
 # Requirements for Docker container-based Lambda
 # Core Lambda and AWS dependencies
-aws-lambda-powertools==2.32.0
+aws-lambda-powertools[parser]==2.32.0
 boto3==1.34.34
 slack-sdk==3.26.2
+aws-xray-sdk==2.12.1
 
 # HTTP dependencies (wheel-compatible versions)
 requests==2.31.0
@@ -12,15 +13,21 @@ aiohttp==3.12.6
 # Scraping dependencies
 beautifulsoup4==4.12.3
 lxml==5.1.0
+soupsieve==2.4.0
 
 # Additional utilities (ARM64 wheel compatible)
 cachetools==5.5.0
 pydantic==2.4.0
 python-dateutil==2.8.2
+typing-extensions==4.7.0
+wrapt==1.16.0
+annotated-types==0.5.0
+orjson==3.9.0
 
 # Compression support (optional, with fallback)
 brotli==1.1.0
-aws-xray-sdk==2.12.1
+zstandard==0.21.0
+
 # Performance and browser automation (optional but recommended)
 uvloop==0.19.0
 playwright==1.45.0

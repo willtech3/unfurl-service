@@ -342,10 +342,13 @@ class PlaywrightScraper(BaseScraper):
                 data["image_url"] = twitter_image.get("content")
 
             # Extract video URL for reels/videos
+            video_url = None
             if og_video and og_video.get("content"):
-                data["video_url"] = og_video.get("content")
+                video_url = og_video.get("content")
+                data["video_url"] = video_url
             elif twitter_player and twitter_player.get("content"):
-                data["video_url"] = twitter_player.get("content")
+                video_url = twitter_player.get("content")
+                data["video_url"] = video_url
 
             # Extract post ID from URL
             post_id = self._extract_post_id(url)
@@ -353,8 +356,10 @@ class PlaywrightScraper(BaseScraper):
                 data["post_id"] = post_id
 
             # Add video-specific data for better Slack formatting
-            if content_type in ["video", "reel"] and data.get("video_url"):
+            is_video_content = bool(video_url) or content_type in ["video", "reel"]
+            if is_video_content:
                 data["is_video"] = True
+                data["has_video"] = True
                 data["video_playable"] = (
                     True  # Indicate this should be playable in Slack
                 )
@@ -498,7 +503,10 @@ class PlaywrightScraper(BaseScraper):
             if media_data.get("is_video") and not data.get("video_url"):
                 data["video_url"] = media_data.get("video_url")
                 data["is_video"] = True
-                data["content_type"] = "video"
+                data["has_video"] = True
+                # Only override content_type if not already set from URL
+                if data.get("content_type") == "photo":
+                    data["content_type"] = "video"
 
             # Extract timestamp
             if media_data.get("taken_at_timestamp") and not data.get("timestamp"):
@@ -516,7 +524,10 @@ class PlaywrightScraper(BaseScraper):
                 if video.get("src") and not data.get("video_url"):
                     data["video_url"] = video.get("src")
                     data["is_video"] = True
-                    data["content_type"] = "video"
+                    data["has_video"] = True
+                    # Only override content_type if not already set from URL
+                    if data.get("content_type") == "photo":
+                        data["content_type"] = "video"
                     break
 
                 # Check poster attribute for video thumbnail
@@ -547,7 +558,10 @@ class PlaywrightScraper(BaseScraper):
                     # Mark as video if we found a video stream
                     if meta_name == "twitter:player:stream":
                         data["is_video"] = True
-                        data["content_type"] = "video"
+                        data["has_video"] = True
+                        # Only override content_type if not already set from URL
+                        if data.get("content_type") == "photo":
+                            data["content_type"] = "video"
 
         except Exception as e:
             self.logger.debug(f"Additional meta tag extraction failed: {e}")

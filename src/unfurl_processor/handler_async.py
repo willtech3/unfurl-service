@@ -214,6 +214,17 @@ class AsyncUnfurlHandler:
                     value=1,
                 )
 
+            # Improved video detection logic
+            has_video = False
+            if result.data:
+                has_video = (
+                    bool(result.data.get("video_url"))
+                    or bool(result.data.get("videos"))
+                    or bool(result.data.get("is_video"))
+                    or result.data.get("content_type") in ["video", "reel"]
+                    or "/reel/" in url
+                )
+
             self.logger.info(
                 "Instagram data fetch completed",
                 extra={
@@ -221,7 +232,10 @@ class AsyncUnfurlHandler:
                     "success": result.success,
                     "method": result.method,
                     "fetch_time": fetch_time,
-                    "has_video": bool(result.data and result.data.get("video_url")),
+                    "has_video": has_video,
+                    "video_url": (
+                        result.data.get("video_url", "") if result.data else ""
+                    ),
                     "is_fallback": result.data
                     and result.data.get("is_fallback", False),
                 },

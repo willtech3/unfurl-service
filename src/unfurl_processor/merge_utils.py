@@ -18,6 +18,8 @@ _FIELDS_PRIORITY: list[str] = [
     "video_url",
     "image_url",
     "content_type",
+    "is_video",
+    "has_video",
     "title",
     "description",
     "is_verified",

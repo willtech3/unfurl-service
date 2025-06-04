@@ -28,12 +28,8 @@ RUN dnf update -y && \
 
 # Copy requirements and install Python dependencies
 COPY requirements-docker.txt /tmp/requirements-docker.txt
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
-
-# Install Playwright - ensure it's installed in the correct location
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} \
-    playwright==1.45.0 \
-    playwright-stealth==1.0.6
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt
 
 # Set up Playwright environment variables before browser installation
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers

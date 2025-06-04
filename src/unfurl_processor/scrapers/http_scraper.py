@@ -251,22 +251,36 @@ class HttpScraper(BaseScraper):
             # Determine if this is video content
             is_video_content = False
             video_url = None
+            content_type = "photo"  # default
+
+            # Determine content type from URL first
+            if "/reel/" in url:
+                content_type = "reel"
+                is_video_content = True
+            elif "/tv/" in url:
+                content_type = "video"
+                is_video_content = True
 
             # Multiple video detection strategies
             if og_video and og_video.get("content"):
                 video_url = og_video.get("content")
                 is_video_content = True
+                if content_type == "photo":  # Only override if not already set from URL
+                    content_type = "video"
             elif twitter_player and twitter_player.get("content"):
                 video_url = twitter_player.get("content")
                 is_video_content = True
+                if content_type == "photo":
+                    content_type = "video"
             elif twitter_player_stream and twitter_player_stream.get("content"):
                 video_url = twitter_player_stream.get("content")
                 is_video_content = True
-            elif "/reel/" in url or "/tv/" in url:
-                # Instagram Reels and IGTV are always video content
-                is_video_content = True
+                if content_type == "photo":
+                    content_type = "video"
             elif og_type and "video" in og_type.get("content", "").lower():
                 is_video_content = True
+                if content_type == "photo":
+                    content_type = "video"
 
             data = {
                 "post_id": self.extract_post_id(url),
@@ -291,8 +305,9 @@ class HttpScraper(BaseScraper):
                         else None
                     )
                 ),
-                "content_type": "video" if is_video_content else "photo",
+                "content_type": content_type,
                 "is_video": is_video_content,  # Add explicit video flag
+                "has_video": is_video_content,  # Alternative field
                 "username": None,
                 "caption": None,
                 "likes": None,
@@ -472,7 +487,10 @@ class HttpScraper(BaseScraper):
                                     data["video_url"] = video_data["url"]
                                 # Mark as video content
                                 data["is_video"] = True
-                                data["content_type"] = "video"
+                                data["has_video"] = True
+                                # Only override content_type if not already set from URL
+                                if data.get("content_type") == "photo":
+                                    data["content_type"] = "video"
 
                         # Extract timestamps
                         if "datePublished" in ld_data and not data.get("timestamp"):
@@ -510,6 +528,10 @@ class HttpScraper(BaseScraper):
                 if video.get("src") and not data.get("video_url"):
                     data["video_url"] = video.get("src")
                     data["is_video"] = True
+                    data["has_video"] = True
+                    # Only override content_type if not already set from URL
+                    if data.get("content_type") == "photo":
+                        data["content_type"] = "video"
                     break
 
                 # Check source elements within video
@@ -518,6 +540,10 @@ class HttpScraper(BaseScraper):
                     if source.get("src") and not data.get("video_url"):
                         data["video_url"] = source.get("src")
                         data["is_video"] = True
+                        data["has_video"] = True
+                        # Only override content_type if not already set from URL
+                        if data.get("content_type") == "photo":
+                            data["content_type"] = "video"
                         break
 
             # Look for data attributes that might contain video URLs
@@ -527,6 +553,10 @@ class HttpScraper(BaseScraper):
                 if video_url and not data.get("video_url"):
                     data["video_url"] = video_url
                     data["is_video"] = True
+                    data["has_video"] = True
+                    # Only override content_type if not already set from URL
+                    if data.get("content_type") == "photo":
+                        data["content_type"] = "video"
                     break
 
         except Exception as e:

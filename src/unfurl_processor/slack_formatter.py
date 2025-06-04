@@ -41,10 +41,12 @@ class SlackFormatter:
 
         try:
             # Determine if this is video content
-            is_video = bool(data.get("video_url")) or data.get("content_type") in [
-                "video",
-                "reel",
-            ]
+            is_video = (
+                bool(data.get("video_url"))
+                or data.get("content_type") in ["video", "reel"]
+                or data.get("is_video") is True
+                or data.get("has_video") is True
+            )
             is_fallback = data.get("is_fallback", False)
 
             # Create enhanced unfurl based on content type

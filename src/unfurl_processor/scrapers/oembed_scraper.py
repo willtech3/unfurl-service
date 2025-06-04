@@ -175,7 +175,15 @@ class OEmbedScraper(BaseScraper):
             thumbnail_url = oembed_data.get("thumbnail_url", "")
             html = oembed_data.get("html", "")
 
+            # Determine content type from URL first
+            content_type = "photo"  # default
+            if "/reel/" in url:
+                content_type = "reel"
+            elif "/tv/" in url:
+                content_type = "video"
+
             # Try to extract video URL from HTML
+            video_url = None
             if html:
                 # Try to extract video URL from HTML
                 import re
@@ -189,7 +197,6 @@ class OEmbedScraper(BaseScraper):
                     r'https://[^"]*instagram\.com[^"]*\.mp4[^"]*',
                 ]
 
-                video_url = None
                 for pattern in video_patterns:
                     video_match = re.search(pattern, html)
                     if video_match:
@@ -198,6 +205,12 @@ class OEmbedScraper(BaseScraper):
 
                 # Enhanced data extraction from HTML
                 self._extract_additional_html_data(html, data={})
+
+            # Update content type if we found video
+            if video_url and content_type == "photo":
+                content_type = "video"
+
+            is_video_content = bool(video_url) or content_type in ["video", "reel"]
 
             data = {
                 "post_id": self.extract_post_id(url),
@@ -208,8 +221,9 @@ class OEmbedScraper(BaseScraper):
                 "description": (
                     title if title else None
                 ),  # oEmbed often puts description in title
-                "content_type": "video" if video_url else "photo",
-                "is_video": bool(video_url),
+                "content_type": content_type,
+                "is_video": is_video_content,
+                "has_video": is_video_content,  # Alternative field
                 "username": author_name if author_name else None,
                 "author": author_name if author_name else None,
                 "caption": self._extract_caption_from_title(title),
@@ -246,7 +260,10 @@ class OEmbedScraper(BaseScraper):
                 if video.get("src") and not data.get("video_url"):
                     data["video_url"] = video.get("src")
                     data["is_video"] = True
-                    data["content_type"] = "video"
+                    data["has_video"] = True
+                    # Only override content_type if not already set from URL
+                    if data.get("content_type") == "photo":
+                        data["content_type"] = "video"
                     break
 
             # Look for additional data attributes

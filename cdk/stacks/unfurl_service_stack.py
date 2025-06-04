@@ -181,6 +181,7 @@ class UnfurlServiceStack(Stack):
                 "POWERTOOLS_METRICS_NAMESPACE": f"UnfurlService/{env_name}",
                 "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
+                "PYTHONPATH": "/var/task:/var/runtime",
             },
             timeout=Duration.minutes(5),  # Increased for Playwright browser startup
             memory_size=1024,  # Increased for browser automation
