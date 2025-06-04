@@ -31,7 +31,7 @@ try:
     # Try importing playwright base module first
     import playwright
 
-    version = getattr(playwright, '__version__', 'unknown')
+    version = getattr(playwright, "__version__", "unknown")
     import_logger.info(f"✅ Base playwright module imported, version: {version}")
     import_logger.info(f"Playwright location: {playwright.__file__}")
 
@@ -66,9 +66,9 @@ except ImportError as e:
 
     # Check PYTHONPATH and environment
     import_logger.error(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
-    task_root = os.environ.get('LAMBDA_TASK_ROOT', 'Not set')
+    task_root = os.environ.get("LAMBDA_TASK_ROOT", "Not set")
     import_logger.error(f"LAMBDA_TASK_ROOT: {task_root}")
-    browsers_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 'Not set')
+    browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "Not set")
     import_logger.error(f"PLAYWRIGHT_BROWSERS_PATH: {browsers_path}")
 
     # Try to find playwright installation
