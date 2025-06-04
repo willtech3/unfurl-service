@@ -41,7 +41,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
 ENV PYTHONPATH=/var/task
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
-# Install only runtime dependencies (no build tools)
+# Install system dependencies needed for Playwright
 RUN dnf update -y && \
     dnf install -y \
         # Basic utilities
@@ -49,29 +49,15 @@ RUN dnf update -y && \
         ca-certificates \
         findutils \
         binutils \
-        tar \
-        gzip \
-        unzip \
-        # Core X11 and graphics libraries for Playwright
-        xorg-x11-server-Xvfb \
         nss \
         atk \
         gtk3 \
-        cups-libs \
-        dbus-glib \
         libdrm \
         libXcomposite \
         libXdamage \
         libXrandr \
-        libxkbcommon \
-        libXScrnSaver \
-        # Audio support
-        alsa-lib \
-        # Font support
-        fontconfig \
-        liberation-fonts \
-        # Additional dependencies for browser automation
-        mesa-libgbm && \
+        mesa-libgbm \
+        alsa-lib && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

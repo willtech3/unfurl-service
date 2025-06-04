@@ -464,9 +464,9 @@ class PlaywrightScraper(BaseScraper):
             if is_video_content:
                 data["is_video"] = True
                 data["has_video"] = True
-                data["video_playable"] = (
-                    True  # Indicate this should be playable in Slack
-                )
+                data[
+                    "video_playable"
+                ] = True  # Indicate this should be playable in Slack
 
             # Extract additional data from page JavaScript and elements
             self._extract_enhanced_page_data(soup, data)
