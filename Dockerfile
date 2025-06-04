@@ -1,16 +1,17 @@
-# Robust Dockerfile for Instagram unfurl service with Playwright
-# Designed to resolve Playwright installation issues in Lambda
+# Multi-stage Dockerfile for Instagram unfurl service with Playwright
+# Designed to resolve Docker build issues by separating build and runtime environments
 
-FROM public.ecr.aws/lambda/python:3.12-arm64
+# =====================================================
+# Build Stage: Install Python packages and dependencies
+# =====================================================
+FROM public.ecr.aws/lambda/python:3.12-arm64 as builder
 
-# Set environment variables early
+# Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1
 ENV DOCKER_BUILDKIT=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
-ENV PYTHONPATH=/var/task
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
-# Install comprehensive system dependencies for Playwright and build tools
+# Install build dependencies (will be discarded after this stage)
 RUN dnf update -y && \
     dnf install -y \
         # Build tools for Python C extensions
@@ -27,6 +28,42 @@ RUN dnf update -y && \
         xz-devel \
         lz4-devel \
         libzstd-devel \
+        # Basic utilities needed for build
+        wget \
+        ca-certificates \
+        findutils \
+        binutils \
+        tar \
+        gzip \
+        unzip && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Copy requirements and install Python dependencies
+COPY requirements-docker.txt /tmp/requirements-docker.txt
+
+# Install Python packages to a temporary directory
+RUN echo "Installing Python packages in build stage..." && \
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    # Install packages to /app directory which we'll copy to runtime stage
+    pip install --no-cache-dir --prefer-binary --target /app -r /tmp/requirements-docker.txt && \
+    echo "Python packages installed successfully in build stage"
+
+# =====================================================
+# Runtime Stage: Clean Lambda environment
+# =====================================================
+FROM public.ecr.aws/lambda/python:3.12-arm64
+
+# Set environment variables for runtime
+ENV PYTHONUNBUFFERED=1
+ENV DOCKER_BUILDKIT=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/var/task/playwright-browsers
+ENV PYTHONPATH=/var/task
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+
+# Install only runtime dependencies (no build tools)
+RUN dnf update -y && \
+    dnf install -y \
         # Basic utilities
         wget \
         ca-certificates \
@@ -35,7 +72,7 @@ RUN dnf update -y && \
         tar \
         gzip \
         unzip \
-        # Core X11 and graphics libraries
+        # Core X11 and graphics libraries for Playwright
         xorg-x11-server-Xvfb \
         nss \
         atk \
@@ -58,19 +95,8 @@ RUN dnf update -y && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
-# Copy requirements and install Python dependencies with verbose output
-COPY requirements-docker.txt /tmp/requirements-docker.txt
-
-# Install Python packages with detailed logging and wheel fallback
-RUN echo "Installing Python packages..." && \
-    pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    # Try to install with prefer-binary first to use pre-compiled wheels
-    pip install --no-cache-dir --prefer-binary --target ${LAMBDA_TASK_ROOT} -r /tmp/requirements-docker.txt && \
-    echo "Python packages installed successfully" && \
-    # Clean up build dependencies to reduce image size
-    dnf remove -y gcc gcc-c++ make cmake rust cargo python3-devel *-devel && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+# Copy installed Python packages from build stage
+COPY --from=builder /app ${LAMBDA_TASK_ROOT}
 
 # Verify Playwright installation
 RUN echo "Verifying Playwright installation..." && \
