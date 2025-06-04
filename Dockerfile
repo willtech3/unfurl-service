@@ -34,23 +34,13 @@ RUN dnf update -y && \
         libXrandr \
         libxkbcommon \
         libXScrnSaver \
-        libXss \
         # Audio support
         alsa-lib \
         # Font support
         fontconfig \
         liberation-fonts \
         # Additional dependencies for browser automation
-        mesa-libgbm \
-        libgtk-3-0 \
-        libnss3 \
-        libxrandr2 \
-        libdrm2 \
-        libxkbcommon0 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxss1 \
-        libasound2 && \
+        mesa-libgbm && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
