@@ -2,8 +2,10 @@
 
 import asyncio
 import glob
+import logging
 import os
 import random
+import sys
 import time
 from typing import Any, Dict, Optional
 
@@ -11,18 +13,91 @@ from bs4 import BeautifulSoup
 
 from .base import BaseScraper, ScrapingResult
 
+# Enhanced Playwright import with comprehensive debugging
+PLAYWRIGHT_AVAILABLE = False
+async_playwright = None
+stealth_async = None
+Browser = None
+BrowserContext = None
+
+# Set up logging for import diagnostics
+import_logger = logging.getLogger(__name__ + ".import")
+
 try:
+    import_logger.info("Attempting to import Playwright...")
+    import_logger.info(f"Python version: {sys.version}")
+    import_logger.info(f"Python path: {sys.path[:3]}")
+
+    # Try importing playwright base module first
+    import playwright
+
+    version = getattr(playwright, '__version__', 'unknown')
+    import_logger.info(f"✅ Base playwright module imported, version: {version}")
+    import_logger.info(f"Playwright location: {playwright.__file__}")
+
+    # Try importing async API
     from playwright.async_api import Browser, BrowserContext, async_playwright
-    from playwright_stealth import stealth_async
+
+    import_logger.info("✅ Playwright async API imported successfully")
+
+    # Try importing stealth
+    try:
+        from playwright_stealth import stealth_async
+
+        import_logger.info("✅ Playwright stealth imported successfully")
+    except ImportError as stealth_e:
+        import_logger.warning(f"⚠️ Playwright stealth import failed: {stealth_e}")
+        stealth_async = None
 
     PLAYWRIGHT_AVAILABLE = True
+    import_logger.info("✅ All Playwright imports successful")
+
 except ImportError as e:
-    print(f"Playwright import failed: {e}")
-    PLAYWRIGHT_AVAILABLE = False
-    async_playwright = None
-    stealth_async = None
-    Browser = None
-    BrowserContext = None
+    import_logger.error(f"❌ Playwright import failed: {e}")
+    import_logger.error(f"Error type: {type(e)}")
+
+    # Check if specific modules are missing
+    try:
+        import playwright
+
+        import_logger.info("Base playwright module is available")
+    except ImportError:
+        import_logger.error("Base playwright module is not available")
+
+    # Check PYTHONPATH and environment
+    import_logger.error(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+    task_root = os.environ.get('LAMBDA_TASK_ROOT', 'Not set')
+    import_logger.error(f"LAMBDA_TASK_ROOT: {task_root}")
+    browsers_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH', 'Not set')
+    import_logger.error(f"PLAYWRIGHT_BROWSERS_PATH: {browsers_path}")
+
+    # Try to find playwright installation
+    for path in sys.path:
+        playwright_path = os.path.join(path, "playwright")
+        if os.path.exists(playwright_path):
+            import_logger.info(f"Found playwright directory at: {playwright_path}")
+            try:
+                contents = os.listdir(playwright_path)
+                import_logger.info(f"Playwright directory contents: {contents[:10]}")
+            except Exception as list_e:
+                import_logger.error(f"Could not list playwright directory: {list_e}")
+
+    import traceback
+
+    import_logger.error(f"Full traceback: {traceback.format_exc()}")
+
+except Exception as e:
+    import_logger.error(f"❌ Unexpected error during Playwright import: {e}")
+    import_logger.error(f"Error type: {type(e)}")
+    import traceback
+
+    import_logger.error(f"Full traceback: {traceback.format_exc()}")
+
+# Log final status
+if PLAYWRIGHT_AVAILABLE:
+    import_logger.info("🎉 Playwright is ready for use")
+else:
+    import_logger.error("💥 Playwright is not available")
 
 
 class PlaywrightScraper(BaseScraper):
