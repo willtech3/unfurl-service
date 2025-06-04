@@ -14,6 +14,7 @@ from .base import BaseScraper, ScrapingResult
 from .http_scraper import HttpScraper
 from .oembed_scraper import OEmbedScraper
 from .playwright_scraper import PlaywrightScraper
+from ..merge_utils import merge_instagram_results
 
 logger = Logger()
 
@@ -141,6 +142,8 @@ class ScraperManager:
                     )
 
                 if result.success and result.data:
+                    # Tag data with scraper provenance for merging
+                    result.data["__scraper_method"] = result.method
                     results.append(result)
                     self._emit_metric(
                         "ScraperSuccess", 1, dimensions={"Scraper": scraper.name}
@@ -169,50 +172,58 @@ class ScraperManager:
                     "ScraperException", 1, dimensions={"Scraper": scraper.name}
                 )
 
-        # Select the richest result
+        # Aggregate and select
         if results:
-            richest_result = max(results, key=self.calculate_quality_score)
+            # Sort results by quality score (desc) for merge priority
+            scored: list[tuple[int, ScrapingResult]] = [
+                (self.calculate_quality_score(r), r) for r in results
+            ]
+            scored.sort(key=lambda x: x[0], reverse=True)
+
             total_time = self.measure_time(start_time)
 
-            # Log quality comparison
-            for result in results:
-                score = self.calculate_quality_score(result)
-                self.logger.info(f"📊 {result.method}: quality score {score}")
-                self._emit_metric(
-                    "QualityScore", score, dimensions={"Scraper": result.method}
+            # Log individual quality scores
+            for score, res in scored:
+                self.logger.info(
+                    "📊 %s: quality score %s", res.method, score
                 )
+                self._emit_metric("QualityScore", score, dimensions={"Scraper": res.method})
 
-            best_score = self.calculate_quality_score(richest_result)
-            scraper_success_msg = (
-                f"✅ Best quality: {richest_result.method} (score: {best_score})"
+            # Merge field-level data in score order (highest first)
+            merged_data = merge_instagram_results([r.data for _, r in scored])
+
+            # Build final aggregated result
+            aggregated_result = ScrapingResult(
+                success=True,
+                data=merged_data,
+                method="aggregated",
+                response_time_ms=total_time,
             )
-            time_msg = f"in {richest_result.response_time_ms}ms (total: {total_time}ms)"
-            self.logger.info(f"{scraper_success_msg} {time_msg}")
-            self._emit_metric(
-                "BestQualityScraper", 1, dimensions={"Scraper": richest_result.method}
+
+            # Compute aggregated quality score for reference
+            aggregated_score = self.calculate_quality_score(aggregated_result)
+
+            # Attach metadata
+            aggregated_result.data.update(
+                {
+                    "scraper_attempts": len(self.scrapers),
+                    "total_response_time_ms": total_time,
+                    "quality_score": aggregated_score,
+                    "scraper_method": "aggregated",
+                    "fallback_errors": errors.copy(),
+                }
             )
+
+            self.logger.info(
+                "✅ Aggregated result built with score %s after %sms (from %d scrapers)",
+                aggregated_score,
+                total_time,
+                len(results),
+            )
+            self._emit_metric("BestQualityScraper", 1, dimensions={"Scraper": "aggregated"})
             self._emit_metric("ScrapingTime", total_time, unit="Milliseconds")
 
-            # Add manager metadata
-            richest_result.data["scraper_attempts"] = len(self.scrapers)
-            richest_result.data["total_response_time_ms"] = total_time
-            richest_result.data["quality_score"] = best_score
-            richest_result.data["scraper_method"] = richest_result.method
-            # Log the scraper that will supply the final unfurl
-            self.logger.info(
-                "➡️ Selected scraper %s with score %s for %s",
-                richest_result.method,
-                best_score,
-                url,
-                extra={
-                    "url": url,
-                    "chosen_scraper": richest_result.method,
-                    "quality_score": best_score,
-                },
-            )
-            richest_result.data["fallback_errors"] = errors.copy()
-
-            return richest_result
+            return aggregated_result
         else:
             # All scrapers failed
             total_time = self.measure_time(start_time)
@@ -393,7 +404,7 @@ class ScraperManager:
         - Content richness (caption, description, title): 70 points max
         - Media content (videos, images): 80 points max
         - Metadata (author, timestamps, engagement): 50 points max
-        - Technical quality (high-res, video URLs): 35 points max
+        - Technical quality (high-res images, direct video URLs): 35 points max
         - Source reliability bonus: 15 points max
 
         Total possible: 250 points

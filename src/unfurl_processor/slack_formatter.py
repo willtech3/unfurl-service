@@ -67,8 +67,8 @@ class SlackFormatter:
         to a rich thumbnail with Instagram-like layout using Block Kit.
         """
         # Extract metadata
-        username = data.get("username", "Instagram User")
-        caption = data.get("caption", "")
+        username = data.get("username") or "Instagram User"
+        caption = data.get("caption") or ""
         likes = data.get("likes")
         comments = data.get("comments")
         video_url = data.get("video_url")
@@ -276,8 +276,8 @@ class SlackFormatter:
         """Format image/photo content with rich, Instagram-like layout using
         Block Kit."""
         # Extract metadata
-        username = data.get("username", "Instagram User")
-        caption = data.get("caption", "")
+        username = data.get("username") or "Instagram User"
+        caption = data.get("caption") or ""
         likes = data.get("likes")
         comments = data.get("comments")
         image_url = data.get("image_url")
@@ -383,19 +383,15 @@ class SlackFormatter:
         self, username: str, caption: str, url: str, content_type: str
     ) -> Dict[str, Any]:
         """Create basic unfurl for fallback scenarios."""
+        # Normalise potential None values to safe defaults
+        username = username or "Instagram User"
+        caption = caption or ""
+
         title = f" *{username}" if content_type == "photo" else f" *{username}"
-
-        description_parts = []
-        if caption:
-            display_caption = caption[:150] + "..." if len(caption) > 150 else caption
-            description_parts.append(f'"{display_caption}"')
-
         description = (
-            "\n".join(description_parts)
-            if description_parts
-            else f"Instagram {content_type}"
+            f'"{caption[:150]}..."' if caption else f"Instagram {content_type}"
         )
-        description += f"\n\n {url}|View on Instagram>"
+        description += f"\n\n<{url}|View on Instagram>"
 
         return {
             "color": "#E4405F",
@@ -426,8 +422,8 @@ class SlackFormatter:
     def _format_basic_unfurl(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Format basic unfurl as fallback."""
         url = data.get("url", "")
-        title = data.get("title", "Instagram Content")
-        description = data.get("description", "Content available on Instagram")
+        title = data.get("title") or "Instagram Content"
+        description = data.get("description") or "Content available on Instagram"
 
         return {
             "color": "#E4405F",
