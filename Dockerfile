@@ -33,7 +33,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Set up Playwright environment variables before browser installation
 ENV PLAYWRIGHT_BROWSERS_PATH=${LAMBDA_TASK_ROOT}/playwright-browsers
-ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:${PYTHONPATH}
+ENV PYTHONPATH=${LAMBDA_TASK_ROOT}
 
 # Install Playwright browsers with explicit path and verification
 RUN cd ${LAMBDA_TASK_ROOT} && \
