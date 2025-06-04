@@ -14,7 +14,16 @@ def test_playwright_imports():
         # Test 1: Base playwright import
         print("1. Testing base playwright import...")
         import playwright
-        version = getattr(playwright, '__version__', 'unknown')
+        
+        # Try multiple methods to get Playwright version
+        version = getattr(playwright, '__version__', None)
+        if version is None:
+            try:
+                import importlib.metadata as im
+                version = im.version('playwright')
+            except Exception:
+                version = 'unknown'
+        
         print(f"   ✅ playwright imported successfully, version: {version}")
         
         # Test 2: async_api import (this was failing)

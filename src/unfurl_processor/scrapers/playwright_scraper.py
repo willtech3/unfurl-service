@@ -31,7 +31,15 @@ try:
     # Try importing playwright base module first
     import playwright
 
-    version = getattr(playwright, "__version__", "unknown")
+    # Try multiple methods to get Playwright version
+    version = getattr(playwright, "__version__", None)
+    if version is None:
+        try:
+            import importlib.metadata as im
+            version = im.version("playwright")
+        except Exception:
+            version = "unknown"
+    
     import_logger.info(f"✅ Base playwright module imported, version: {version}")
     import_logger.info(f"Playwright location: {playwright.__file__}")
 
