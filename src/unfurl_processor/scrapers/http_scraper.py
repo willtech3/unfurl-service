@@ -261,19 +261,19 @@ class HttpScraper(BaseScraper):
                 content_type = "video"
                 is_video_content = True
 
-            # Multiple video detection strategies
-            if og_video and og_video.get("content"):
-                video_url = og_video.get("content")
+            # Multiple video detection strategies (ensure non-empty URLs)
+            if og_video and og_video.get("content") and og_video.get("content").strip():
+                video_url = og_video.get("content").strip()
                 is_video_content = True
                 if content_type == "photo":  # Only override if not already set from URL
                     content_type = "video"
-            elif twitter_player and twitter_player.get("content"):
-                video_url = twitter_player.get("content")
+            elif twitter_player and twitter_player.get("content") and twitter_player.get("content").strip():
+                video_url = twitter_player.get("content").strip()
                 is_video_content = True
                 if content_type == "photo":
                     content_type = "video"
-            elif twitter_player_stream and twitter_player_stream.get("content"):
-                video_url = twitter_player_stream.get("content")
+            elif twitter_player_stream and twitter_player_stream.get("content") and twitter_player_stream.get("content").strip():
+                video_url = twitter_player_stream.get("content").strip()
                 is_video_content = True
                 if content_type == "photo":
                     content_type = "video"
@@ -343,21 +343,26 @@ class HttpScraper(BaseScraper):
         """Parse Instagram description for username, likes, comments."""
         try:
             import re
+            
+            # Debug log the input description
+            self.logger.debug(f"Parsing description for metadata: {description[:200]}...")
 
-            # Enhanced patterns for Instagram descriptions
+            # Enhanced patterns for Instagram descriptions (with Unicode support)
             patterns = [
                 # Pattern 1: "123 Likes, 45 Comments - username on Instagram: "caption""
                 r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$',
                 # Pattern 2: "See Instagram photos and videos from username (@handle)"
                 r"See Instagram photos and videos from (.+?) \(@([^)]+)\)",
-                # Pattern 3: "username on Instagram: "caption""
-                r'^(.+?) on Instagram: "(.+)"$',
+                # Pattern 3: "username on Instagram: "caption"" (improved Unicode support)
+                r'^(.+?)\s+on Instagram:\s*["""](.+?)["""].*$',
                 # Pattern 4: "@username • Instagram photos and videos"
                 r"^@([^\s•]+?)\s*•\s*Instagram",
                 # Pattern 5: Just engagement numbers
                 r"([\d,]+)\s+likes?,\s*([\d,]+)\s+comments?",
                 # Pattern 6: Username in title format
                 r"^([^:•\-]+?)\s*[\-•:]\s*Instagram",
+                # Pattern 7: Fallback - anything before " on Instagram"
+                r'^([^"]+?)\s+on Instagram',
             ]
 
             for i, pattern in enumerate(patterns):
@@ -390,6 +395,15 @@ class HttpScraper(BaseScraper):
                     elif i == 5:  # Username from title
                         data["username"] = match.group(1).strip()
                         break
+                    elif i == 6:  # Fallback - anything before " on Instagram"
+                        data["username"] = match.group(1).strip()
+                        break
+            
+            # Log successful username extraction
+            if data.get("username"):
+                self.logger.debug(f"Successfully extracted username: {data['username']}")
+            else:
+                self.logger.debug("No username extracted from description patterns")
 
             # Separate extraction for engagement numbers if not found above
             if not data.get("likes"):
@@ -481,10 +495,10 @@ class HttpScraper(BaseScraper):
                         if "video" in ld_data and not data.get("video_url"):
                             video_data = ld_data["video"]
                             if isinstance(video_data, dict):
-                                if "contentUrl" in video_data:
-                                    data["video_url"] = video_data["contentUrl"]
-                                elif "url" in video_data:
-                                    data["video_url"] = video_data["url"]
+                                if "contentUrl" in video_data and video_data["contentUrl"].strip():
+                                    data["video_url"] = video_data["contentUrl"].strip()
+                                elif "url" in video_data and video_data["url"].strip():
+                                    data["video_url"] = video_data["url"].strip()
                                 # Mark as video content
                                 data["is_video"] = True
                                 data["has_video"] = True
@@ -525,8 +539,9 @@ class HttpScraper(BaseScraper):
             # Look for video elements
             video_elements = soup.find_all("video")
             for video in video_elements:
-                if video.get("src") and not data.get("video_url"):
-                    data["video_url"] = video.get("src")
+                src = video.get("src")
+                if src and src.strip() and not data.get("video_url"):
+                    data["video_url"] = src.strip()
                     data["is_video"] = True
                     data["has_video"] = True
                     # Only override content_type if not already set from URL
@@ -537,8 +552,9 @@ class HttpScraper(BaseScraper):
                 # Check source elements within video
                 sources = video.find_all("source")
                 for source in sources:
-                    if source.get("src") and not data.get("video_url"):
-                        data["video_url"] = source.get("src")
+                    src = source.get("src")
+                    if src and src.strip() and not data.get("video_url"):
+                        data["video_url"] = src.strip()
                         data["is_video"] = True
                         data["has_video"] = True
                         # Only override content_type if not already set from URL
@@ -550,8 +566,8 @@ class HttpScraper(BaseScraper):
             video_containers = soup.find_all(attrs={"data-video-url": True})
             for container in video_containers:
                 video_url = container.get("data-video-url")
-                if video_url and not data.get("video_url"):
-                    data["video_url"] = video_url
+                if video_url and video_url.strip() and not data.get("video_url"):
+                    data["video_url"] = video_url.strip()
                     data["is_video"] = True
                     data["has_video"] = True
                     # Only override content_type if not already set from URL

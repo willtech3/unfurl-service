@@ -79,6 +79,20 @@ class SlackFormatter:
         content_type = data.get("content_type", "video")
         is_verified = data.get("is_verified", False)
 
+        # Debug logging for video block conditions
+        self.logger.info(
+            "Video block conditions check",
+            extra={
+                "is_fallback": is_fallback,
+                "video_url": video_url,
+                "video_url_length": len(video_url) if video_url else 0,
+                "has_video_proxy_url": bool(self.video_proxy_base_url),
+                "video_proxy_base_url": self.video_proxy_base_url,
+                "is_instagram_video": self._is_instagram_video_url(video_url) if video_url else False,
+                "username": username,
+            }
+        )
+
         # Try to create Video Block for embedded playback
         if (
             not is_fallback
