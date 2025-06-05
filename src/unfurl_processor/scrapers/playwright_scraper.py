@@ -461,13 +461,16 @@ class PlaywrightScraper(BaseScraper):
                 data["post_id"] = post_id
 
             # Add video-specific data for better Slack formatting
-            is_video_content = bool(video_url) or content_type in ["video", "reel"]
-            if is_video_content:
+            # Only mark as video/playable if we actually have a video URL
+            if video_url and video_url.strip():
                 data["is_video"] = True
                 data["has_video"] = True
-                data["video_playable"] = (
-                    True  # Indicate this should be playable in Slack
-                )
+                data["video_playable"] = True
+            elif content_type in ["video", "reel"]:
+                # Mark as video content but not playable since we don't have video URL
+                data["is_video"] = True
+                data["has_video"] = False  # No actual video URL available
+                data["video_playable"] = False
 
             # Extract additional data from page JavaScript and elements
             self._extract_enhanced_page_data(soup, data)
@@ -604,14 +607,42 @@ class PlaywrightScraper(BaseScraper):
                 caption_node = caption_edges[0].get("node", {})
                 data["caption"] = caption_node.get("text", "")
 
-            # Extract video URL
+            # Extract video URL with multiple strategies
             if media_data.get("is_video") and not data.get("video_url"):
-                data["video_url"] = media_data.get("video_url")
-                data["is_video"] = True
-                data["has_video"] = True
-                # Only override content_type if not already set from URL
-                if data.get("content_type") == "photo":
-                    data["content_type"] = "video"
+                # Try multiple video URL fields
+                video_candidates = [
+                    media_data.get("video_url"),
+                    media_data.get("dash_info", {}).get("video_dash_manifest"),
+                    media_data.get("video_resources", [{}])[0].get("src") if media_data.get("video_resources") else None,
+                    media_data.get("video_versions", [{}])[0].get("url") if media_data.get("video_versions") else None,
+                ]
+                
+                # Also check nested video data
+                video_data = media_data.get("video", {})
+                if video_data:
+                    video_candidates.extend([
+                        video_data.get("video_url"),
+                        video_data.get("src"),
+                        video_data.get("url"),
+                    ])
+                
+                # Use first valid video URL found
+                for video_url in video_candidates:
+                    if video_url and video_url.strip():
+                        data["video_url"] = video_url.strip()
+                        data["is_video"] = True
+                        data["has_video"] = True
+                        # Only override content_type if not already set from URL
+                        if data.get("content_type") == "photo":
+                            data["content_type"] = "video"
+                        self.logger.debug(f"Found video URL in media data: {video_url[:100]}...")
+                        break
+                
+                # Log what fields were available if no video URL found
+                if not data.get("video_url"):
+                    self.logger.debug(f"No video URL found in media data. Available fields: {list(media_data.keys())}")
+                    if media_data.get("is_video"):
+                        self.logger.warning("Instagram marked content as video but no video URL found")
 
             # Extract timestamp
             if media_data.get("taken_at_timestamp") and not data.get("timestamp"):
