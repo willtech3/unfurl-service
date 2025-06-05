@@ -45,7 +45,7 @@ class SlackFormatter:
                 bool(data.get("video_url") and data.get("video_url").strip())
                 or data.get("video_playable") is True
             )
-            
+
             # Check if this is video content type but without playable video
             is_video_content_type = (
                 data.get("content_type") in ["video", "reel"]
@@ -57,7 +57,7 @@ class SlackFormatter:
             if is_video:
                 return self._format_video_unfurl(data, is_fallback)
             elif is_video_content_type:
-                # Video content but no playable video - format as enhanced image with video indicators
+                # Video content but no playable video - format as enhanced image
                 return self._format_video_content_unfurl(data, is_fallback)
             else:
                 return self._format_image_unfurl(data, is_fallback)
@@ -95,9 +95,11 @@ class SlackFormatter:
                 "video_url_length": len(video_url) if video_url else 0,
                 "has_video_proxy_url": bool(self.video_proxy_base_url),
                 "video_proxy_base_url": self.video_proxy_base_url,
-                "is_instagram_video": self._is_instagram_video_url(video_url) if video_url else False,
+                "is_instagram_video": (
+                    self._is_instagram_video_url(video_url) if video_url else False
+                ),
                 "username": username,
-            }
+            },
         )
 
         # Try to create Video Block for embedded playback
@@ -256,35 +258,34 @@ class SlackFormatter:
         self, data: Dict[str, Any], is_fallback: bool
     ) -> Dict[str, Any]:
         """
-        Format video content without playable video (e.g., when video URL extraction failed).
+        Format video content without playable video.
         Creates an enhanced image unfurl with video content indicators.
         """
-        username = data.get("username") or "Instagram User"
-        caption = data.get("caption") or ""
-        likes = data.get("likes")
-        comments = data.get("comments")
-        image_url = data.get("image_url")
-        url = data.get("url", "")
         content_type = data.get("content_type", "video")
-        is_verified = data.get("is_verified", False)
 
         # Create rich image unfurl with video indicators
-        self.logger.info(f"Creating enhanced image unfurl for {content_type} content (no video URL)")
-        
+        self.logger.info(
+            f"Creating enhanced image unfurl for {content_type} content (no video URL)"
+        )
+
         # Use the image unfurl method but with video content data
         unfurl = self._format_image_unfurl(data, is_fallback)
-        
+
         # Add video content indicators
         if unfurl and "blocks" in unfurl:
             # Modify the header to indicate this is video content
             for block in unfurl["blocks"]:
-                if block.get("type") == "section" and "Instagram" in block.get("text", {}).get("text", ""):
+                if block.get("type") == "section" and "Instagram" in block.get(
+                    "text", {}
+                ).get("text", ""):
                     # Add video emoji to indicate this is video content
                     text = block["text"]["text"]
                     if "📹" not in text:
-                        block["text"]["text"] = text.replace(" *Instagram*", " 📹 *Instagram Video*")
+                        block["text"]["text"] = text.replace(
+                            " *Instagram*", " 📹 *Instagram Video*"
+                        )
                     break
-        
+
         return unfurl
 
     def _is_instagram_video_url(self, video_url: str) -> bool:

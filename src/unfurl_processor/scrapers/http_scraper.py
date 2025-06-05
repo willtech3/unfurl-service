@@ -267,12 +267,20 @@ class HttpScraper(BaseScraper):
                 is_video_content = True
                 if content_type == "photo":  # Only override if not already set from URL
                     content_type = "video"
-            elif twitter_player and twitter_player.get("content") and twitter_player.get("content").strip():
+            elif (
+                twitter_player
+                and twitter_player.get("content")
+                and twitter_player.get("content").strip()
+            ):
                 video_url = twitter_player.get("content").strip()
                 is_video_content = True
                 if content_type == "photo":
                     content_type = "video"
-            elif twitter_player_stream and twitter_player_stream.get("content") and twitter_player_stream.get("content").strip():
+            elif (
+                twitter_player_stream
+                and twitter_player_stream.get("content")
+                and twitter_player_stream.get("content").strip()
+            ):
                 video_url = twitter_player_stream.get("content").strip()
                 is_video_content = True
                 if content_type == "photo":
@@ -343,9 +351,11 @@ class HttpScraper(BaseScraper):
         """Parse Instagram description for username, likes, comments."""
         try:
             import re
-            
+
             # Debug log the input description
-            self.logger.debug(f"Parsing description for metadata: {description[:200]}...")
+            self.logger.debug(
+                f"Parsing description for metadata: {description[:200]}..."
+            )
 
             # Enhanced patterns for Instagram descriptions (with Unicode support)
             patterns = [
@@ -353,7 +363,7 @@ class HttpScraper(BaseScraper):
                 r'^([\d,]+) Likes, ([\d,]+) Comments - (.+?) on Instagram: "(.+)"$',
                 # Pattern 2: "See Instagram photos and videos from username (@handle)"
                 r"See Instagram photos and videos from (.+?) \(@([^)]+)\)",
-                # Pattern 3: "username on Instagram: "caption"" (improved Unicode support)
+                # Pattern 3: "username on Instagram: "caption"" (Unicode support)
                 r'^(.+?)\s+on Instagram:\s*["""](.+?)["""].*$',
                 # Pattern 4: "@username • Instagram photos and videos"
                 r"^@([^\s•]+?)\s*•\s*Instagram",
@@ -398,10 +408,12 @@ class HttpScraper(BaseScraper):
                     elif i == 6:  # Fallback - anything before " on Instagram"
                         data["username"] = match.group(1).strip()
                         break
-            
+
             # Log successful username extraction
             if data.get("username"):
-                self.logger.debug(f"Successfully extracted username: {data['username']}")
+                self.logger.debug(
+                    f"Successfully extracted username: {data['username']}"
+                )
             else:
                 self.logger.debug("No username extracted from description patterns")
 
@@ -495,7 +507,10 @@ class HttpScraper(BaseScraper):
                         if "video" in ld_data and not data.get("video_url"):
                             video_data = ld_data["video"]
                             if isinstance(video_data, dict):
-                                if "contentUrl" in video_data and video_data["contentUrl"].strip():
+                                if (
+                                    "contentUrl" in video_data
+                                    and video_data["contentUrl"].strip()
+                                ):
                                     data["video_url"] = video_data["contentUrl"].strip()
                                 elif "url" in video_data and video_data["url"].strip():
                                     data["video_url"] = video_data["url"].strip()

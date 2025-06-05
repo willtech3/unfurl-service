@@ -315,7 +315,9 @@ class PlaywrightScraper(BaseScraper):
 
             # Wait for content to load with timeout (check for presence, not visibility)
             try:
-                await page.wait_for_selector('meta[property="og:title"]', timeout=5000, state="attached")
+                await page.wait_for_selector(
+                    'meta[property="og:title"]', timeout=5000, state="attached"
+                )
             except asyncio.TimeoutError:
                 # Continue even if specific selector not found
                 pass
@@ -613,19 +615,29 @@ class PlaywrightScraper(BaseScraper):
                 video_candidates = [
                     media_data.get("video_url"),
                     media_data.get("dash_info", {}).get("video_dash_manifest"),
-                    media_data.get("video_resources", [{}])[0].get("src") if media_data.get("video_resources") else None,
-                    media_data.get("video_versions", [{}])[0].get("url") if media_data.get("video_versions") else None,
+                    (
+                        media_data.get("video_resources", [{}])[0].get("src")
+                        if media_data.get("video_resources")
+                        else None
+                    ),
+                    (
+                        media_data.get("video_versions", [{}])[0].get("url")
+                        if media_data.get("video_versions")
+                        else None
+                    ),
                 ]
-                
+
                 # Also check nested video data
                 video_data = media_data.get("video", {})
                 if video_data:
-                    video_candidates.extend([
-                        video_data.get("video_url"),
-                        video_data.get("src"),
-                        video_data.get("url"),
-                    ])
-                
+                    video_candidates.extend(
+                        [
+                            video_data.get("video_url"),
+                            video_data.get("src"),
+                            video_data.get("url"),
+                        ]
+                    )
+
                 # Use first valid video URL found
                 for video_url in video_candidates:
                     if video_url and video_url.strip():
@@ -635,14 +647,21 @@ class PlaywrightScraper(BaseScraper):
                         # Only override content_type if not already set from URL
                         if data.get("content_type") == "photo":
                             data["content_type"] = "video"
-                        self.logger.debug(f"Found video URL in media data: {video_url[:100]}...")
+                        self.logger.debug(
+                            f"Found video URL in media data: {video_url[:100]}..."
+                        )
                         break
-                
+
                 # Log what fields were available if no video URL found
                 if not data.get("video_url"):
-                    self.logger.debug(f"No video URL found in media data. Available fields: {list(media_data.keys())}")
+                    self.logger.debug(
+                        f"No video URL found in media data. "
+                        f"Available fields: {list(media_data.keys())}"
+                    )
                     if media_data.get("is_video"):
-                        self.logger.warning("Instagram marked content as video but no video URL found")
+                        self.logger.warning(
+                            "Instagram marked content as video but no video URL found"
+                        )
 
             # Extract timestamp
             if media_data.get("taken_at_timestamp") and not data.get("timestamp"):
