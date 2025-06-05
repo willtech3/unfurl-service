@@ -12,6 +12,7 @@ from aws_cdk import (
     aws_secretsmanager as sm,
     aws_sqs as sqs,
     aws_ecr_assets as ecr_assets,
+    aws_iam as iam,
 )
 from constructs import Construct
 
@@ -194,6 +195,15 @@ class UnfurlServiceStack(Stack):
         cache_table.grant_read_write_data(unfurl_processor)
         deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
+        
+        # Grant CloudWatch metrics permissions
+        unfurl_processor.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+            )
+        )
 
         # Video Proxy Lambda for Slack Video Block support
         video_proxy = lambda_.Function(
@@ -246,6 +256,15 @@ class UnfurlServiceStack(Stack):
 
         # Grant video proxy read access to cache table
         cache_table.grant_read_write_data(video_proxy)
+        
+        # Grant CloudWatch metrics permissions to video proxy
+        video_proxy.add_to_role_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+            )
+        )
 
         # Dead Letter Queue for failed Lambda invocations
         dlq = sqs.Queue(

@@ -313,9 +313,9 @@ class PlaywrightScraper(BaseScraper):
             # Navigate with realistic timing
             await page.goto(url, wait_until="domcontentloaded")
 
-            # Wait for content to load with timeout
+            # Wait for content to load with timeout (check for presence, not visibility)
             try:
-                await page.wait_for_selector('meta[property="og:title"]', timeout=5000)
+                await page.wait_for_selector('meta[property="og:title"]', timeout=5000, state="attached")
             except asyncio.TimeoutError:
                 # Continue even if specific selector not found
                 pass
