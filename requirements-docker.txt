@@ -12,7 +12,7 @@ aiohttp==3.12.6
 
 # Scraping dependencies
 beautifulsoup4==4.12.3
-lxml==5.1.0
+lxml==5.3.0
 soupsieve==2.4.0
 
 # Additional utilities (ARM64 wheel compatible)
