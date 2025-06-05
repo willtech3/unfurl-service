@@ -36,10 +36,11 @@ try:
     if version is None:
         try:
             import importlib.metadata as im
+
             version = im.version("playwright")
         except Exception:
             version = "unknown"
-    
+
     import_logger.info(f"✅ Base playwright module imported, version: {version}")
     import_logger.info(f"Playwright location: {playwright.__file__}")
 
@@ -464,9 +465,9 @@ class PlaywrightScraper(BaseScraper):
             if is_video_content:
                 data["is_video"] = True
                 data["has_video"] = True
-                data[
-                    "video_playable"
-                ] = True  # Indicate this should be playable in Slack
+                data["video_playable"] = (
+                    True  # Indicate this should be playable in Slack
+                )
 
             # Extract additional data from page JavaScript and elements
             self._extract_enhanced_page_data(soup, data)

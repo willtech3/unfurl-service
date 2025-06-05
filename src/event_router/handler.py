@@ -163,7 +163,9 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
 
                 if metrics:
                     metrics.add_metric(
-                        name="ComposerEventsIgnored", unit=MetricUnit.Count, value=1,
+                        name="ComposerEventsIgnored",
+                        unit=MetricUnit.Count,
+                        value=1,
                     )
 
                 return {
