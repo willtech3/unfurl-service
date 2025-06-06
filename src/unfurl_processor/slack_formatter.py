@@ -179,17 +179,27 @@ class SlackFormatter:
             if is_verified:
                 username_text += " "
 
+            # Instagram logo and header context
+            logo_context_block = {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "image",
+                        "image_url": (
+                            "https://www.instagram.com/static/images/ico/"
+                            "favicon-192.png/68d99ba29cc8.png"
+                        ),
+                        "alt_text": "Instagram",
+                    },
+                    {"type": "mrkdwn", "text": "*Instagram*"},
+                ],
+            }
+            blocks.append(logo_context_block)
+
+            # Username section
             header_block = {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f" *Instagram*\n{username_text}"},
-                "accessory": {
-                    "type": "image",
-                    "image_url": (
-                        "https://www.instagram.com/static/images/ico/"
-                        "favicon-192.png/68d99ba29cc8.png"
-                    ),
-                    "alt_text": "Instagram",
-                },
+                "text": {"type": "mrkdwn", "text": f"📷 {username_text}"},
             }
             blocks.append(header_block)
 
@@ -389,22 +399,29 @@ class SlackFormatter:
         content_indicator = self._get_content_indicator(content_type)
         content_label = self._get_content_type_label(content_type)
 
+        # Instagram logo and header context
+        logo_context_block = {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "image",
+                    "image_url": (
+                        "https://www.instagram.com/static/images/ico/"
+                        "favicon-192.png/68d99ba29cc8.png"
+                    ),
+                    "alt_text": "Instagram",
+                },
+                {"type": "mrkdwn", "text": f"*Instagram {content_label}*"},
+            ],
+        }
+        blocks.append(logo_context_block)
+
+        # Content and username section
         header_block = {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": (
-                    f"{content_indicator} *Instagram {content_label}*\n"
-                    f"{username_text}"
-                ),
-            },
-            "accessory": {
-                "type": "image",
-                "image_url": (
-                    "https://www.instagram.com/static/images/ico/"
-                    "favicon-192.png/68d99ba29cc8.png"
-                ),
-                "alt_text": "Instagram",
+                "text": f"{content_indicator} {username_text}",
             },
         }
         blocks.append(header_block)
