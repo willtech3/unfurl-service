@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-Successfully enhanced the Instagram unfurl Lambda service with Docker-based container deployment, modular scraper architecture, and enhanced Slack formatting with video support.
+Successfully enhanced the Instagram unfurl Lambda service with Docker-based container deployment, modular scraper architecture, and improved Slack formatting.
 
 ## 🏗️ Architecture Changes
 
@@ -20,7 +20,6 @@ Implemented intelligent fallback strategy with separate scrapers:
 4. **ScraperManager** - Orchestrates fallbacks and quality scoring
 
 ### 3. Enhanced Slack Formatting
-- Rich video unfurls with playable content when supported
 - Instagram brand colors and styling
 - Engagement metrics (likes, comments) with formatted numbers
 - Fallback handling for failed scrapes
@@ -64,11 +63,6 @@ Implemented intelligent fallback strategy with separate scrapers:
 
 ## 🎨 Enhanced Features
 
-### Video Support
-- Direct video playback in Slack when supported
-- Smart thumbnail fallback for non-playable videos
-- Video URL extraction from Instagram metadata
-- Enhanced video unfurl formatting with play buttons
 
 ### Bot Evasion
 - Randomized user agents and viewport sizes
@@ -115,7 +109,7 @@ PROXY_URLS=proxy1.com:8080,proxy2.com:8080  # Optional
 
 ### Unfurl Quality
 - **Before**: Basic image and text extraction
-- **After**: Rich video content, engagement stats, enhanced formatting
+- **After**: Rich media content, engagement stats, enhanced formatting
 
 ### Latency
 - **Cold Start**: ~2-3 seconds (optimized container)
@@ -146,7 +140,6 @@ PROXY_URLS=proxy1.com:8080,proxy2.com:8080  # Optional
 
 ## 🔄 Future Enhancements
 
-1. **Advanced Video Support**: Direct Instagram video streaming
 2. **Rate Limiting**: Intelligent backoff for high-volume usage  
 3. **Multi-Platform**: Support for TikTok, YouTube Shorts
 4. **ML Enhancement**: Content classification and auto-tagging
@@ -155,4 +148,4 @@ PROXY_URLS=proxy1.com:8080,proxy2.com:8080  # Optional
 ---
 
 **Status**: ✅ Ready for deployment and testing
-**Next Steps**: Deploy to development environment and validate video unfurls
+**Next Steps**: Deploy to development environment and validate unfurls
