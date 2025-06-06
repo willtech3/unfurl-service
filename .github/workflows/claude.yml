@@ -1,5 +1,4 @@
 name: Claude Code
-
 on:
   issue_comment:
     types: [created]
@@ -17,20 +16,125 @@ jobs:
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    
     runs-on: ubuntu-latest
+    
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
+      contents: write      # Allow writing to repository
+      pull-requests: write # Allow updating PRs
+      issues: write        # Allow updating issues
+      id-token: write      # For AWS OIDC if needed
+      actions: write       # Allow workflow modifications
+      checks: write        # Allow creating check runs
+      statuses: write      # Allow setting commit statuses
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
-
+          fetch-depth: 0  # Full history for better context
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12.9'
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+          
+      - name: Setup environment
+        run: |
+          # Make scripts executable
+          find . -name "*.sh" -type f -exec chmod +x {} \;
+          
+          # Install common Python tools including AWS SDK
+          pip install --upgrade pip
+          pip install poetry pipenv black flake8 pytest boto3 awscli
+          
+          # Create a workspace directory for Claude
+          mkdir -p .claude-workspace
+          
+          # Set up git config for commits
+          git config --global user.name "Claude Code Bot"
+          git config --global user.email "claude-bot@github-actions"
+          
+          # Verify AWS credentials are working
+          aws sts get-caller-identity
+          
+      - name: Install project dependencies
+        run: |
+          # Python dependencies
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          elif [ -f "pyproject.toml" ]; then
+            poetry install
+          elif [ -f "Pipfile" ]; then
+            pipenv install
+          fi
+          
+          # Node dependencies
+          if [ -f "package.json" ]; then
+            npm ci || npm install
+          fi
+        continue-on-error: true
+        
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Additional configuration options (check action docs)
+          # allow_commands: true
+          # enable_file_operations: true
+          # workspace_path: .claude-workspace
+        env:
+          # Pass AWS credentials and configuration
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          
+          # Pass additional AWS configuration if needed
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          
+          # Pass environment variables Claude might need
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: ${{ github.workspace }}
+          
+          # Pass any custom environment variables
+          ENVIRONMENT: ${{ secrets.ENVIRONMENT || 'development' }}
+          
+      - name: Commit and push changes (if any)
+        if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            git add .
+            git commit -m "Claude Code automated changes"
+            git push
+          fi
+        continue-on-error: true
+        
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-workspace
+          path: .claude-workspace/
+          retention-days: 7
