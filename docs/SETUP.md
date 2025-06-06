@@ -242,7 +242,8 @@ This service uses Playwright for web scraping with specific compatibility requir
 6. **Playwright async_api import errors**
    - Ensure Playwright version in Dockerfile matches requirements-docker.txt
    - For Python 3.12, use Playwright >= 1.45.0
-   - Run the included test: `python test_playwright_fix.py`
+   - Verify the Playwright installation with a simple import test:
+     `python -c "import playwright; print('Playwright import successful')"`
    - Check that browser installation completed successfully
 
 7. **Playwright browser execution failures**
