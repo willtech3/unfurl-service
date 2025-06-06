@@ -124,10 +124,6 @@ RUN echo "Optimizing installation..." && \
 
 # Copy application source code
 COPY src/ ${LAMBDA_TASK_ROOT}/
-
-# Copy test script for Playwright validation
-COPY test_playwright_fix.py ${LAMBDA_TASK_ROOT}/
-
 # Final verification that everything is working (skip async imports during build)
 RUN echo "Final Playwright verification..." && \
     cd ${LAMBDA_TASK_ROOT} && \
