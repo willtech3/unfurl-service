@@ -278,11 +278,15 @@ class SlackFormatter:
                 if block.get("type") == "section" and "Instagram" in block.get(
                     "text", {}
                 ).get("text", ""):
-                    # Add video emoji to indicate this is video content
+                    # Add specific video emoji and type based on content
                     text = block["text"]["text"]
-                    if "📹" not in text:
+                    video_indicator = self._get_video_indicator(content_type)
+                    content_label = self._get_content_type_label(content_type)
+
+                    if video_indicator not in text:
                         block["text"]["text"] = text.replace(
-                            " *Instagram*", " 📹 *Instagram Video*"
+                            " *Instagram*",
+                            f" {video_indicator} *Instagram {content_label}*",
                         )
                     break
 
@@ -346,11 +350,20 @@ class SlackFormatter:
         # Use Block Kit for rich, Instagram-like layout
         if not is_fallback and image_url:
             return self._create_rich_block_unfurl(
-                username, caption, likes, comments, image_url, url, is_verified, "photo"
+                username,
+                caption,
+                likes,
+                comments,
+                image_url,
+                url,
+                is_verified,
+                data.get("content_type", "photo"),
             )
         else:
             # Fallback to basic unfurl
-            return self._create_basic_unfurl(username, caption, url, "photo")
+            return self._create_basic_unfurl(
+                username, caption, url, data.get("content_type", "photo")
+            )
 
     def _create_rich_block_unfurl(
         self,
@@ -370,11 +383,21 @@ class SlackFormatter:
         # Header with Instagram branding and username
         username_text = f"*{username}*"
         if is_verified:
-            username_text += " "
+            username_text += " ✓"
+
+        # Get appropriate indicator and content type label
+        content_indicator = self._get_content_indicator(content_type)
+        content_label = self._get_content_type_label(content_type)
 
         header_block = {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": f" *Instagram*\n{username_text}"},
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    f"{content_indicator} *Instagram {content_label}*\n"
+                    f"{username_text}"
+                ),
+            },
             "accessory": {
                 "type": "image",
                 "image_url": (
@@ -386,9 +409,14 @@ class SlackFormatter:
         }
         blocks.append(header_block)
 
-        # Caption (if available)
-        if caption:
-            display_caption = caption[:200] + "..." if len(caption) > 200 else caption
+        # Caption (if available) - parse and clean the caption
+        clean_caption = self._extract_clean_caption(caption)
+        if clean_caption:
+            display_caption = (
+                clean_caption[:200] + "..."
+                if len(clean_caption) > 200
+                else clean_caption
+            )
             formatted_caption = self._format_caption_with_hashtags(display_caption)
 
             caption_block = {
@@ -405,11 +433,17 @@ class SlackFormatter:
                 "alt_text": f"Instagram {content_type} by {username}",
             }
 
-            # Add video indicator for video content
-            if content_type in ["video", "reel"]:
+            # Add play button overlay for video content
+            if content_type in ["video", "reel", "tv"]:
+                content_label = self._get_content_type_label(content_type)
                 image_block["title"] = {
                     "type": "plain_text",
-                    "text": f" {content_type.title()}",
+                    "text": f"▶️ Tap to watch {content_label.lower()}",
+                }
+            elif content_type == "photo":
+                image_block["title"] = {
+                    "type": "plain_text",
+                    "text": "📷 View photo",
                 }
 
             blocks.append(image_block)
@@ -446,10 +480,19 @@ class SlackFormatter:
         username = username or "Instagram User"
         caption = caption or ""
 
-        title = f" *{username}" if content_type == "photo" else f" *{username}"
-        description = (
-            f'"{caption[:150]}..."' if caption else f"Instagram {content_type}"
-        )
+        # Get appropriate indicator and label for content type
+        content_indicator = self._get_content_indicator(content_type)
+        content_label = self._get_content_type_label(content_type)
+
+        title = f"{content_indicator} *{username}"
+
+        # Clean caption if available
+        clean_caption = self._extract_clean_caption(caption)
+        if clean_caption:
+            description = f'"{clean_caption[:150]}..."'
+        else:
+            description = f"Instagram {content_label.lower()} content"
+
         description += f"\n\n<{url}|View on Instagram>"
 
         return {
@@ -481,8 +524,17 @@ class SlackFormatter:
     def _format_basic_unfurl(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Format basic unfurl as fallback."""
         url = data.get("url", "")
-        title = data.get("title") or "Instagram Content"
-        description = data.get("description") or "Content available on Instagram"
+        content_type = data.get("content_type", "photo")
+
+        # Get appropriate indicator and label
+        content_indicator = self._get_content_indicator(content_type)
+        content_label = self._get_content_type_label(content_type)
+
+        title = data.get("title") or f"{content_indicator} Instagram {content_label}"
+        description = (
+            data.get("description")
+            or f"Instagram {content_label.lower()} content available"
+        )
 
         return {
             "color": "#E4405F",
@@ -590,6 +642,74 @@ class SlackFormatter:
 
         except Exception:
             return False
+
+    def _get_video_indicator(self, content_type: str) -> str:
+        """Get the appropriate video indicator emoji for content type."""
+        indicators = {
+            "reel": "▶️",
+            "video": "🎬",
+            "tv": "📺",
+        }
+        return indicators.get(content_type, "🎬")
+
+    def _get_content_indicator(self, content_type: str) -> str:
+        """Get the appropriate indicator emoji for any content type."""
+        indicators = {
+            "reel": "▶️",
+            "video": "🎬",
+            "tv": "📺",
+            "photo": "📷",
+        }
+        return indicators.get(content_type, "📷")
+
+    def _get_content_type_label(self, content_type: str) -> str:
+        """Get the human-readable label for content type."""
+        labels = {
+            "reel": "Reel",
+            "video": "Video",
+            "tv": "IGTV",
+            "photo": "Post",
+        }
+        return labels.get(content_type, "Content")
+
+    def _extract_clean_caption(self, caption: str) -> str:
+        """Extract clean caption from Instagram description text."""
+        if not caption:
+            return ""
+
+        import re
+
+        # Pattern 1: "X likes, Y comments - username on [date]: \"caption\""
+        pattern1 = (
+            r"^[\d,]+\s+likes?,\s*[\d,]+\s+comments?\s*-\s*[^:]+:\s*"
+            r'["""](.+?)["""].*$'
+        )
+        match = re.search(pattern1, caption, re.IGNORECASE | re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
+        # Pattern 2: "username on Instagram: \"caption\""
+        pattern2 = r'^.+?\s+on\s+Instagram:\s*["""](.+?)["""].*$'
+        match = re.search(pattern2, caption, re.IGNORECASE | re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
+        # Pattern 3: Look for quoted content anywhere in the text
+        pattern3 = r'["""]([^"""]+)["""]'
+        match = re.search(pattern3, caption)
+        if match:
+            quoted_text = match.group(1).strip()
+            # Only return if it's substantial (more than just a few words)
+            if len(quoted_text) > 20:
+                return quoted_text
+
+        # Pattern 4: If caption doesn't look like metadata, return as-is
+        # Skip if it looks like "X likes, Y comments" format
+        if not re.match(r"^[\d,]+\s+likes?,", caption, re.IGNORECASE):
+            return caption.strip()
+
+        # If no clean caption found, return empty string
+        return ""
 
     def create_slack_blocks(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """

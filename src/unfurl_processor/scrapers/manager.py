@@ -385,7 +385,7 @@ class ScraperManager:
             "total_scrapers": len(self.scrapers),
             "scraper_names": [scraper.name for scraper in self.scrapers],
             "fallback_order": [
-                f"{i+1}. {scraper.name}" for i, scraper in enumerate(self.scrapers)
+                f"{i + 1}. {scraper.name}" for i, scraper in enumerate(self.scrapers)
             ],
             "capabilities": {
                 scraper.name: {
