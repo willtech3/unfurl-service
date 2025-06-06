@@ -47,7 +47,7 @@ If you added new scopes in step 5:
 ## Testing
 After configuration:
 1. Share an Instagram link in a Slack channel
-2. You should see a rich preview with video, title, description, and view count
+2. You should see a rich preview with title, description, and view count
 3. If nothing appears, run the test script:
    ```bash
    python scripts/test-slack-events.py

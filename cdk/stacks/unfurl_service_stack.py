@@ -195,70 +195,9 @@ class UnfurlServiceStack(Stack):
         cache_table.grant_read_write_data(unfurl_processor)
         deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
-        
+
         # Grant CloudWatch metrics permissions
         unfurl_processor.add_to_role_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=["cloudwatch:PutMetricData"],
-                resources=["*"],
-            )
-        )
-
-        # Video Proxy Lambda for Slack Video Block support
-        video_proxy = lambda_.Function(
-            self,
-            "VideoProxy",
-            function_name=f"video-proxy-{env_name}",
-            runtime=lambda_.Runtime.FROM_IMAGE,
-            architecture=lambda_.Architecture.ARM_64,
-            handler=lambda_.Handler.FROM_IMAGE,
-            code=lambda_.Code.from_asset_image(
-                directory=".",
-                file="Dockerfile",
-                exclude=[
-                    "*.pyc",
-                    "__pycache__",
-                    ".pytest_cache",
-                    ".mypy_cache",
-                    ".coverage",
-                    "htmlcov/",
-                    "cdk.out/",
-                    ".venv/",
-                    ".git/",
-                    "*.md",
-                    "docs/",
-                    "tests/",
-                    ".github/",
-                    "*.log",
-                    "*.tmp",
-                    ".DS_Store",
-                    "response.json",
-                    "test-payload.json",
-                    ".dockerignore.bak",
-                    "Dockerfile.base",
-                    "Dockerfile.fast",
-                ],
-                cmd=["unfurl_processor.video_proxy.lambda_handler"],
-            ),
-            environment={
-                "CACHE_TABLE_NAME": cache_table.table_name,
-                "LOG_LEVEL": "INFO",
-                "POWERTOOLS_METRICS_NAMESPACE": f"UnfurlService/{env_name}",
-                "POWERTOOLS_SERVICE_NAME": "video-proxy",
-            },
-            timeout=Duration.seconds(30),
-            memory_size=256,
-            reserved_concurrent_executions=50,
-            log_retention=logs.RetentionDays.ONE_WEEK,
-            tracing=lambda_.Tracing.ACTIVE,
-        )
-
-        # Grant video proxy read access to cache table
-        cache_table.grant_read_write_data(video_proxy)
-        
-        # Grant CloudWatch metrics permissions to video proxy
-        video_proxy.add_to_role_policy(
             iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
                 actions=["cloudwatch:PutMetricData"],
@@ -307,12 +246,6 @@ class UnfurlServiceStack(Stack):
             ),
         )
 
-        # Update unfurl processor environment with video proxy endpoint
-        unfurl_processor.add_environment(
-            "VIDEO_PROXY_BASE_URL",
-            f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/prod",
-        )
-
         # Slack events endpoint
         slack_resource = api.root.add_resource("slack")
         events_resource = slack_resource.add_resource("events")
@@ -331,33 +264,6 @@ class UnfurlServiceStack(Stack):
                 ],
             ),
             method_responses=[apigw.MethodResponse(status_code="200")],
-        )
-
-        # Video proxy endpoint for Slack Video Block support
-        video_resource = api.root.add_resource("video")
-        video_url_resource = video_resource.add_resource("{video_url}")
-
-        video_url_resource.add_method(
-            "GET",
-            apigw.LambdaIntegration(
-                video_proxy,
-                proxy=True,
-                integration_responses=[
-                    apigw.IntegrationResponse(
-                        status_code="200",
-                        response_templates={"text/html": ""},
-                    )
-                ],
-            ),
-            method_responses=[
-                apigw.MethodResponse(
-                    status_code="200",
-                    response_parameters={
-                        "method.response.header.Content-Type": True,
-                        "method.response.header.X-Frame-Options": True,
-                    },
-                )
-            ],
         )
 
         # CloudWatch Alarms
