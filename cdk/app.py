@@ -15,7 +15,7 @@ region = app.node.try_get_context("region") or os.environ.get(
 # Create the stack
 stack = UnfurlServiceStack(
     app,
-    f"UnfurlServiceStack-{env_name}",
+    f"UnfurlService-{env_name}",
     env=Environment(account=account, region=region),
     description="Instagram link unfurl service for Slack",
 )
