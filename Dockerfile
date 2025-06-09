@@ -6,12 +6,20 @@
 # =====================================================
 # Using the official Playwright image ensures compatibility and includes all
 # necessary system dependencies (apt-get, etc.) for browser installation
-FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy as builder
+FROM --platform=linux/arm64 mcr.microsoft.com/playwright/python:v1.45.0-jammy as builder
 
 # Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1
 ENV DOCKER_BUILDKIT=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+# Install build dependencies for native extensions
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements-docker.txt /tmp/requirements-docker.txt
@@ -20,8 +28,8 @@ COPY requirements-docker.txt /tmp/requirements-docker.txt
 RUN echo "Installing Python packages in build stage..." && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
     # Install packages to /app directory which we'll copy to runtime stage
-    # Use binary wheels to avoid architecture issues during build
-    pip install --no-cache-dir --prefer-binary --target /app -r /tmp/requirements-docker.txt && \
+    # Force rebuild of native extensions for ARM64 compatibility
+    pip install --no-cache-dir --no-binary=greenlet,lxml --target /app -r /tmp/requirements-docker.txt && \
     echo "Python packages installed successfully in build stage"
 
 # Install Playwright browsers (this will work properly with apt-get available)
