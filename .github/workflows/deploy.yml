@@ -128,12 +128,18 @@ jobs:
           AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
           echo "🏢 AWS Account: $AWS_ACCOUNT"
           
+          # Clear any cached CDK context that might contain unfurl qualifier
+          rm -rf cdk.out
+          rm -f cdk.context.json
+          
           # Skip bootstrap - environment already bootstrapped
           # cdk bootstrap aws://$AWS_ACCOUNT/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --require-approval never
           
-          # Deploy the stack (with explicit environment context and default qualifier)
+          # Deploy the stack with aggressive qualifier override
+          CDK_DEFAULT_ACCOUNT=$AWS_ACCOUNT CDK_DEFAULT_REGION=${{ env.AWS_REGION }} \
           cdk deploy --all --require-approval never \
-            -c "env=${{ env.AWS_REGION }}" \
-            -c "account=$AWS_ACCOUNT" \
-            -c "region=${{ env.AWS_REGION }}" \
-            -c "@aws-cdk/core:bootstrapQualifier=hnb659fds"
+            --context "env=${{ env.AWS_REGION }}" \
+            --context "account=$AWS_ACCOUNT" \
+            --context "region=${{ env.AWS_REGION }}" \
+            --context "@aws-cdk/core:bootstrapQualifier=hnb659fds" \
+            --context "bootstrapQualifier=hnb659fds"
