@@ -11,7 +11,6 @@ on:
 env:
   AWS_REGION: us-east-2
   PYTHON_VERSION: "3.12"
-  CDK_QUALIFIER: unfurl
 
 jobs:
   test:
@@ -123,7 +122,7 @@ jobs:
           echo "🚀 Deploying Instagram unfurl service..."
           echo "📋 Using single optimized deployment mode"
           echo "📍 Region: ${{ env.AWS_REGION }}"
-          echo "🔧 Qualifier: ${{ env.CDK_QUALIFIER }}"
+          echo "🔧 Qualifier: default"
           
           # Get AWS account for context
           AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
