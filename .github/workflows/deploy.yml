@@ -131,8 +131,9 @@ jobs:
           # Skip bootstrap - environment already bootstrapped
           # cdk bootstrap aws://$AWS_ACCOUNT/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --require-approval never
           
-          # Deploy the stack (with explicit environment context)
+          # Deploy the stack (with explicit environment context and default qualifier)
           cdk deploy --all --require-approval never \
             -c "env=${{ env.AWS_REGION }}" \
             -c "account=$AWS_ACCOUNT" \
-            -c "region=${{ env.AWS_REGION }}"
+            -c "region=${{ env.AWS_REGION }}" \
+            -c "@aws-cdk/core:bootstrapQualifier=hnb659fds"
