@@ -129,11 +129,11 @@ jobs:
           AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
           echo "🏢 AWS Account: $AWS_ACCOUNT"
           
-          # Bootstrap CDK if needed (with proper context)
-          cdk bootstrap aws://$AWS_ACCOUNT/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --require-approval never
+          # Skip bootstrap - environment already bootstrapped
+          # cdk bootstrap aws://$AWS_ACCOUNT/${{ env.AWS_REGION }} --qualifier ${{ env.CDK_QUALIFIER }} --require-approval never
           
           # Deploy the stack (with explicit environment context)
-          cdk deploy --all --require-approval never --qualifier ${{ env.CDK_QUALIFIER }} \
+          cdk deploy --all --require-approval never \
             -c "env=${{ env.AWS_REGION }}" \
             -c "account=$AWS_ACCOUNT" \
             -c "region=${{ env.AWS_REGION }}"

@@ -19,7 +19,7 @@ stack = UnfurlServiceStack(
     env=Environment(account=account, region=region),
     description="Instagram link unfurl service for Slack",
     synthesizer=DefaultStackSynthesizer(
-        qualifier=os.environ.get("CDK_QUALIFIER", "unfurl")
+        qualifier=os.environ.get("CDK_QUALIFIER", "hnb659fds")  # Use default CDK qualifier
     ),
 )
 
