@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-from aws_cdk import App, Environment, Tags, DefaultStackSynthesizer
+from aws_cdk import App, Environment, Tags
 from stacks.unfurl_service_stack import UnfurlServiceStack
 
 app = App()
@@ -15,12 +15,9 @@ region = app.node.try_get_context("region") or os.environ.get(
 # Create the stack
 stack = UnfurlServiceStack(
     app,
-    f"UnfurlService-{env_name}",
+    f"UnfurlServiceStack-{env_name}",
     env=Environment(account=account, region=region),
     description="Instagram link unfurl service for Slack",
-    synthesizer=DefaultStackSynthesizer(
-        qualifier=os.environ.get("CDK_QUALIFIER", "hnb659fds")  # Use default CDK qualifier
-    ),
 )
 
 # Add tags
