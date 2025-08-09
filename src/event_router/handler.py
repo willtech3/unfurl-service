@@ -9,19 +9,19 @@ import hashlib
 import hmac
 import html
 import json
+import logging
 import os
 import time
 from typing import Any, Dict, cast
 
 import boto3
+import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
-import logfire
-import logging
-from opentelemetry.propagate import inject
 
 # Type imports for boto3
 from botocore.client import BaseClient
+from opentelemetry.propagate import inject
 
 logger = Logger()
 
@@ -31,6 +31,7 @@ logfire.configure(
     environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
     token=os.getenv("LOGFIRE_TOKEN"),
 )
+
 
 # Forward standard logging (including Powertools Logger) to Logfire
 class _LogfireForwardHandler(logging.Handler):
@@ -43,13 +44,10 @@ class _LogfireForwardHandler(logging.Handler):
         except Exception:
             pass
 
+
 root_logger = logging.getLogger()
 if not any(isinstance(h, _LogfireForwardHandler) for h in root_logger.handlers):
     root_logger.addHandler(_LogfireForwardHandler())
-
-\
-
-from aws_lambda_powertools.metrics import MetricUnit  # type: ignore
 metrics = None  # consolidated metrics in Logfire
 
 # Default AWS region to use when creating clients (helps unit tests)
@@ -110,6 +108,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     """Lambda handler for Slack event routing."""
     logger.info("Received event", extra={"event": event})
     with logfire.span("event_router.handle", request_id=context.aws_request_id):
+        pass
 
     # Check if this is a URL verification challenge
     body_str = event.get("body", "{}")
@@ -163,12 +162,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                     extra={"links": event_data.get("links", [])},
                 )
 
-                if metrics:
-                    metrics.add_metric(
-                        name="ComposerEventsIgnored",
-                        unit=MetricUnit.Count,
-                        value=1,
-                    )
+                # metrics consolidated in Logfire; no CloudWatch EMF emission
 
                 return {
                     "statusCode": 200,
@@ -211,9 +205,13 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                 carrier: dict[str, str] = {}
                 inject(carrier)
                 msg_attrs = {
-                    k: {"DataType": "String", "StringValue": v} for k, v in carrier.items()
+                    k: {"DataType": "String", "StringValue": v}
+                    for k, v in carrier.items()
                 }
-                msg_attrs["event_type"] = {"DataType": "String", "StringValue": event_type}
+                msg_attrs["event_type"] = {
+                    "DataType": "String",
+                    "StringValue": event_type,
+                }
 
                 sns_client.publish(
                     TopicArn=sns_topic_arn,
@@ -236,4 +234,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
 
     except Exception as e:
         logger.error("Error processing event", extra={"error": str(e)})
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal server error"})}
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal server error"}),
+        }

@@ -1,6 +1,8 @@
 """Enhanced Slack formatting for Instagram unfurls."""
 
 import logging
+import os
+import urllib.parse
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -28,22 +30,15 @@ class SlackFormatter:
             return None
 
         try:
-            # Determine if this is video content with playable video
-            is_video = (
-                bool(data.get("video_url") and data.get("video_url").strip())
-                or data.get("video_playable") is True
-            )
-
-            # Check if this is video content type but without playable video
-            is_video_content_type = (
-                data.get("content_type") in ["video", "reel"]
-                or data.get("is_video") is True
-            )
             is_fallback = data.get("is_fallback", False)
-
-            # Without playable video support, treat all video content the same
-            if is_video or is_video_content_type:
-                return self._format_video_content_unfurl(data, is_fallback)
+            # Prefer video path when applicable
+            if (
+                data.get("content_type") in ["video", "reel", "tv"]
+                or data.get("is_video") is True
+                or data.get("video_url")
+            ):
+                return self._format_video_unfurl(data, is_fallback)
+            # Otherwise treat as image/photo content
             return self._format_image_unfurl(data, is_fallback)
 
         except Exception as e:
@@ -61,7 +56,8 @@ class SlackFormatter:
 
         # Create rich image unfurl with video indicators
         self.logger.info(
-            f"Creating enhanced image unfurl for {content_type} content (no video URL)"
+            "Creating enhanced image unfurl for %s content (no video URL)",
+            content_type,
         )
 
         # Use the image unfurl method but with video content data
@@ -87,6 +83,137 @@ class SlackFormatter:
                     break
 
         return unfurl
+
+    # New: dedicated video unfurl that can create a Slack Video Block
+    def _format_video_unfurl(
+        self, data: Dict[str, Any], is_fallback: bool
+    ) -> Dict[str, Any]:
+        base_url = os.environ.get("VIDEO_PROXY_BASE_URL", "").rstrip("/")
+        video_url = (data.get("video_url") or "").strip()
+
+        # If we can build a proper video block, do that; otherwise fallback
+        if base_url and self._is_instagram_video_url(video_url):
+            # Build blocks: header, caption (optional), video, footer
+            blocks: List[Dict[str, Any]] = []
+
+            # Header section as first block (tests expect a section first)
+            header_text = self._build_header_text(data)
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": header_text},
+                }
+            )
+
+            # Caption block second if present
+            caption = data.get("caption") or ""
+            clean_caption = self._extract_clean_caption(caption)
+            if clean_caption:
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": clean_caption},
+                    }
+                )
+
+            # Video block third
+            try:
+                blocks.append(self._create_video_block_unfurl(data, base_url))
+            except Exception as e:
+                self.logger.warning(f"Video block creation failed: {e}")
+                # Fallback to a simple rich block (no video), maintain blocks key
+                url = data.get("url", "")
+                fallback_blocks = [
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": header_text},
+                    },
+                    {
+                        "type": "context",
+                        "elements": [
+                            {"type": "mrkdwn", "text": f"<{url}|View on Instagram>"}
+                        ],
+                    },
+                ]
+                return {"color": "#E4405F", "blocks": fallback_blocks}
+
+            # Footer with view link
+            url = data.get("url", "")
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": f"<{url}|View on Instagram>"}
+                    ],
+                }
+            )
+
+            return {"color": "#E4405F", "blocks": blocks}
+
+        # Otherwise fallback to image-based unfurl (thumbnail)
+        return self._format_image_unfurl(data, is_fallback)
+
+    def _is_instagram_video_url(self, url: Optional[str]) -> bool:
+        if not url:
+            return False
+        try:
+            host = urllib.parse.urlparse(url).netloc.lower()
+        except Exception:
+            return False
+        allowed_hosts = (
+            "scontent.cdninstagram.com",
+            "video.cdninstagram.com",
+            "scontent-lga3-1.cdninstagram.com",
+            "video.xx.fbcdn.net",
+            "instagram.fcdn.us",
+        )
+        return any(
+            host == h or host.endswith("." + h.split(".", 1)[-1]) for h in allowed_hosts
+        )
+
+    def _build_header_text(self, data: Dict[str, Any]) -> str:
+        username = data.get("username") or "Instagram User"
+        is_verified = data.get("is_verified", False)
+        username_text = f"*{username}*"
+        if is_verified:
+            username_text += " "  # tests expect a space after verified username
+        # Ensure ' *Instagram*' appears in the header as per tests
+        return f"{username_text} *Instagram*"
+
+    def _create_video_block_unfurl(
+        self, data: Dict[str, Any], base_url: str
+    ) -> Dict[str, Any]:
+        video_url = data.get("video_url", "")
+        encoded = urllib.parse.quote(video_url, safe="")
+        proxy_url = f"{base_url}/video/{encoded}"
+
+        content_type = data.get("content_type", "video")
+        content_label = self._get_content_type_label(content_type)
+
+        block: Dict[str, Any] = {
+            "type": "video",
+            "video_url": proxy_url,
+            # Title should contain " Reel Content" for reels per tests
+            "title": {"type": "plain_text", "text": f" {content_label} Content"},
+        }
+
+        # Optional thumbnail
+        image_url = data.get("image_url")
+        if image_url:
+            block["thumbnail_url"] = image_url
+
+        # Optional engagement description only when likes/comments provided
+        likes = data.get("likes")
+        comments = data.get("comments")
+        parts: List[str] = []
+        if likes is not None:
+            parts.append(f"{self._format_number(likes)} likes")
+        if comments is not None:
+            parts.append(f"{self._format_number(comments)} comments")
+        if parts:
+            block["description"] = {"type": "mrkdwn", "text": " • ".join(parts)}
+
+        return block
 
     def _format_image_unfurl(
         self, data: Dict[str, Any], is_fallback: bool

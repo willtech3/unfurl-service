@@ -5,11 +5,11 @@ import asyncio
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
-from aws_lambda_powertools import Logger
 import logfire
+from aws_lambda_powertools import Logger
 
 from ..merge_utils import merge_instagram_results
 from .base import BaseScraper, ScrapingResult
@@ -177,7 +177,7 @@ class ScraperManager:
         # Aggregate and select
         if results:
             # Sort results by quality score (desc) for merge priority
-            scored: list[tuple[int, ScrapingResult]] = [
+            scored: List[Tuple[int, ScrapingResult]] = [
                 (self.calculate_quality_score(r), r) for r in results
             ]
             scored.sort(key=lambda x: x[0], reverse=True)

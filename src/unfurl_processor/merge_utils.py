@@ -4,13 +4,11 @@ Provides `merge_instagram_results` which selects the first non-empty value for
 important fields across an ordered list of result dictionaries.
 """
 
-from __future__ import annotations
-
 from typing import Any, Dict, List
 
-__all__: list[str] = ["merge_instagram_results"]
+__all__ = ["merge_instagram_results"]
 
-_FIELDS_PRIORITY: list[str] = [
+_FIELDS_PRIORITY: List[str] = [
     "username",
     "caption",
     "likes",

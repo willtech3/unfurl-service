@@ -22,10 +22,11 @@ try:
 except ImportError:
     pass
 
+import logging
+
+import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
-import logfire
-import logging
 from opentelemetry import context as otel_context
 from opentelemetry.propagate import extract
 
@@ -44,6 +45,7 @@ logfire.configure(
 # Forward standard logging (including Powertools Logger) to Logfire without duplication
 _LOGFIRE_HANDLER_ATTACHED = False
 
+
 class _LogfireForwardHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -54,6 +56,7 @@ class _LogfireForwardHandler(logging.Handler):
         except Exception:
             # Never fail app due to logging bridge
             pass
+
 
 root_logger = logging.getLogger()
 if not any(isinstance(h, _LogfireForwardHandler) for h in root_logger.handlers):
@@ -87,6 +90,7 @@ async def async_lambda_handler(
     Returns:
         Response dictionary
     """
+
     # Extract W3C trace context from SNS message attributes if present
     def _extract_sns_carrier(evt: Dict[str, Any]) -> Dict[str, str]:
         try:
@@ -132,7 +136,10 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         return loop.run_until_complete(async_lambda_handler(event, context))
     except Exception as e:
         logger.error(f"Lambda handler error: {str(e)}", exc_info=True)
-        return {"statusCode": 500, "body": json.dumps({"error": "Internal server error"})}
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "Internal server error"}),
+        }
 
 
 # No metrics decorator; metrics are handled by Logfire directly

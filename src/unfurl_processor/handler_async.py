@@ -19,9 +19,9 @@ from urllib.parse import urlparse
 
 import boto3
 import httpx
+import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.metrics import MetricUnit
-import logfire
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
@@ -376,7 +376,6 @@ class AsyncUnfurlHandler:
                 # On error, allow processing to avoid blocking
                 return False
 
-    @tracer.capture_method
     async def process_event(
         self, event: Dict[str, Any], context: LambdaContext
     ) -> Dict[str, Any]:
@@ -471,7 +470,9 @@ class AsyncUnfurlHandler:
 
             # Send unfurls to Slack if any succeeded
             if unfurls:
-                with logfire.span("slack.chat_unfurl", channel=channel, count=len(unfurls)):
+                with logfire.span(
+                    "slack.chat_unfurl", channel=channel, count=len(unfurls)
+                ):
                     await self._send_unfurl_to_slack(
                         slack_client, channel, message_ts, unfurl_id, unfurls
                     )
