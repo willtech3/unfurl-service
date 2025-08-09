@@ -22,8 +22,6 @@ try:
 except ImportError:
     pass
 
-import logging
-
 import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -41,26 +39,6 @@ logfire.configure(
     environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
     token=os.getenv("LOGFIRE_TOKEN"),
 )
-
-# Forward standard logging (including Powertools Logger) to Logfire without duplication
-_LOGFIRE_HANDLER_ATTACHED = False
-
-
-class _LogfireForwardHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            msg = record.getMessage()
-            level = record.levelname.lower()
-            log_fn = getattr(logfire, level, logfire.info)
-            log_fn(msg, logger=record.name)
-        except Exception:
-            # Never fail app due to logging bridge
-            pass
-
-
-root_logger = logging.getLogger()
-if not any(isinstance(h, _LogfireForwardHandler) for h in root_logger.handlers):
-    root_logger.addHandler(_LogfireForwardHandler())
 
 # Powertools metrics/tracer removed; using Logfire metrics and spans
 metrics_available = False
@@ -106,9 +84,8 @@ async def async_lambda_handler(
         token = otel_context.attach(ctx)
 
     try:
-        with logfire.span("unfurl_processor.handle", request_id=context.aws_request_id):
-            handler = get_handler()
-            return await handler.process_event(event, context)
+        handler = get_handler()
+        return await handler.process_event(event, context)
     finally:
         if token is not None:
             otel_context.detach(token)
@@ -140,6 +117,10 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             "statusCode": 500,
             "body": json.dumps({"error": "Internal server error"}),
         }
+
+
+# Wrap handler with Logfire's AWS Lambda instrumentation (in-place)
+logfire.instrument_aws_lambda(lambda_handler)
 
 
 # No metrics decorator; metrics are handled by Logfire directly
