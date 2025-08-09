@@ -1,4 +1,9 @@
-"""Event router Lambda handler for Slack events."""
+"""Event router Lambda handler for Slack events.
+
+Consolidated observability using Logfire for traces, spans, and metrics.
+CloudWatch logs remain via Lambda stdout; we keep Powertools Logger for
+structured JSON logging but remove Powertools Tracer/Metrics.
+"""
 
 import hashlib
 import hmac
@@ -11,44 +16,41 @@ from typing import Any, Dict, cast
 import boto3
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
+import logfire
+import logging
+from opentelemetry.propagate import inject
 
 # Type imports for boto3
 from botocore.client import BaseClient
 
 logger = Logger()
 
-# Initialize tracer if aws_xray_sdk is available
-tracer = None
-try:
-    from aws_lambda_powertools import Tracer
+# Configure Logfire at import time for cold start
+logfire.configure(
+    service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
+    environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
+    token=os.getenv("LOGFIRE_TOKEN"),
+)
 
-    tracer = Tracer()
-except ImportError:
-    logger.warning("aws_xray_sdk not available, tracing disabled")
+# Forward standard logging (including Powertools Logger) to Logfire
+class _LogfireForwardHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = record.getMessage()
+            level = record.levelname.lower()
+            log_fn = getattr(logfire, level, logfire.info)
+            log_fn(msg, logger=record.name)
+        except Exception:
+            pass
 
-    # Create a no-op tracer
-    class NoOpTracer:
-        def capture_lambda_handler(self, *args, **kwargs):
-            def decorator(func):
-                return func
+root_logger = logging.getLogger()
+if not any(isinstance(h, _LogfireForwardHandler) for h in root_logger.handlers):
+    root_logger.addHandler(_LogfireForwardHandler())
 
-            return decorator
+\
 
-        def capture_method(self, *args, **kwargs):
-            def decorator(func):
-                return func
-
-            return decorator
-
-    tracer = NoOpTracer()
-
-# Only initialize metrics if not in test mode
-metrics = None
-if os.environ.get("DISABLE_METRICS") != "true":
-    from aws_lambda_powertools import Metrics
-    from aws_lambda_powertools.metrics import MetricUnit
-
-    metrics = Metrics()
+from aws_lambda_powertools.metrics import MetricUnit  # type: ignore
+metrics = None  # consolidated metrics in Logfire
 
 # Default AWS region to use when creating clients (helps unit tests)
 DEFAULT_AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
@@ -104,10 +106,10 @@ def get_slack_secret() -> Dict[str, str]:
 
 
 @logger.inject_lambda_context(correlation_id_path="requestContext.requestId")
-@tracer.capture_lambda_handler
 def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
     logger.info("Received event", extra={"event": event})
+    with logfire.span("event_router.handle", request_id=context.aws_request_id):
 
     # Check if this is a URL verification challenge
     body_str = event.get("body", "{}")
@@ -205,12 +207,18 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                     "links": instagram_links,
                 }
 
+                # Inject W3C trace context into SNS attributes for cross-Lambda tracing
+                carrier: dict[str, str] = {}
+                inject(carrier)
+                msg_attrs = {
+                    k: {"DataType": "String", "StringValue": v} for k, v in carrier.items()
+                }
+                msg_attrs["event_type"] = {"DataType": "String", "StringValue": event_type}
+
                 sns_client.publish(
                     TopicArn=sns_topic_arn,
                     Message=json.dumps(message),
-                    MessageAttributes={
-                        "event_type": {"DataType": "String", "StringValue": event_type}
-                    },
+                    MessageAttributes=msg_attrs,
                 )
 
                 logger.info(
@@ -221,20 +229,11 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                     },
                 )
 
-                if metrics:
-                    metrics.add_metric(
-                        name="LinksProcessed",
-                        unit=MetricUnit.Count,
-                        value=len(instagram_links),
-                    )
+                # Example Logfire metric
+                logfire.metric_counter("links_processed").add(len(instagram_links))
 
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
     except Exception as e:
         logger.error("Error processing event", extra={"error": str(e)})
-        if metrics:
-            metrics.add_metric(name="ProcessingErrors", unit=MetricUnit.Count, value=1)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": "Internal server error"}),
-        }
+        return {"statusCode": 500, "body": json.dumps({"error": "Internal server error"})}

@@ -55,7 +55,7 @@ The service uses a sophisticated multi-layer approach:
 
 ## Project Structure
 
-```
+```text
 unfurl-service/
 ├── cdk/                           # CDK infrastructure code
 │   ├── app.py                    # CDK app entry point
@@ -86,12 +86,14 @@ unfurl-service/
 ## 🔧 Development Setup
 
 1. **Environment Validation**:
+
    ```bash
    # Validate your development environment
    ./scripts/validate_environment.py
    ```
 
 2. **Install Dependencies**:
+
    ```bash
    # Create virtual environment and install dependencies
    uv venv
@@ -103,6 +105,7 @@ unfurl-service/
    ```
 
 3. **Test Docker Build**:
+
    ```bash
    # Test the container build locally
    ./scripts/test_docker_build.sh
@@ -116,6 +119,7 @@ For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md).
 
 1. **Configure Secrets**: Set up required GitHub secrets
 2. **Push to Main**: Deployment triggers automatically
+
    ```bash
    git add .
    git commit -m "Deploy container-based unfurl service"
@@ -152,11 +156,23 @@ uv run pytest tests/test_scrapers/ -v
 - **Memory Usage**: 512-1024MB (with Playwright)
 - **Success Rate**: 95%+ (with fallback strategies)
 
-Monitor via CloudWatch:
-- Lambda duration and memory metrics
-- Scraping success/failure rates
-- DynamoDB cache hit rates
-- Error logs and traces
+### Observability (Logfire)
+
+- Consolidated backend: Logfire for logs, spans/traces, and metrics.
+- Cross-Lambda tracing via W3C context in SNS `MessageAttributes`.
+- CloudWatch retains JSON-structured logs via Powertools Logger.
+
+Environment variables (set in CDK):
+
+- `LOGFIRE_SERVICE_NAME`: service identifier for Logfire traces/logs.
+- `LOGFIRE_ENV`: environment name (e.g., `dev`, `staging`, `prod`).
+- `LOGFIRE_TOKEN`: ingestion token (provided via CDK context `logfire_token`).
+
+Notes:
+
+- API Gateway execution tracing/logging disabled to reduce noisy CloudWatch log groups.
+- Lambda X-Ray disabled; Logfire is the source of truth for traces.
+- Standard Python logging is bridged to Logfire; CloudWatch still receives logs via Lambda stdout.
 
 ## 🔐 Security
 

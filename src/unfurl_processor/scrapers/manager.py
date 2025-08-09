@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 from aws_lambda_powertools import Logger
+import logfire
 
 from ..merge_utils import merge_instagram_results
 from .base import BaseScraper, ScrapingResult
@@ -130,16 +131,17 @@ class ScraperManager:
                     f"📊 Attempting scraper {i}/{len(self.scrapers)}: {scraper.name}"
                 )
 
-                # Execute scraping (async or sync based on scraper)
-                if hasattr(scraper, "scrape") and asyncio.iscoroutinefunction(
-                    scraper.scrape
-                ):
-                    result = await scraper.scrape(url)
-                else:
-                    # Run sync scrapers in thread pool to avoid blocking
-                    result = await asyncio.get_event_loop().run_in_executor(
-                        None, scraper.scrape, url
-                    )
+                # Execute scraping inside a Logfire span
+                with logfire.span("scraper.run", scraper=scraper.name, url=url):
+                    if hasattr(scraper, "scrape") and asyncio.iscoroutinefunction(
+                        scraper.scrape
+                    ):
+                        result = await scraper.scrape(url)
+                    else:
+                        # Run sync scrapers in thread pool to avoid blocking
+                        result = await asyncio.get_event_loop().run_in_executor(
+                            None, scraper.scrape, url
+                        )
 
                 if result.success and result.data:
                     # Tag data with scraper provenance for merging

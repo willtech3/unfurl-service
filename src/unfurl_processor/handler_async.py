@@ -19,8 +19,9 @@ from urllib.parse import urlparse
 
 import boto3
 import httpx
-from aws_lambda_powertools import Logger, Metrics, Tracer
+from aws_lambda_powertools import Logger
 from aws_lambda_powertools.metrics import MetricUnit
+import logfire
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
@@ -35,19 +36,11 @@ SlackEvent = Dict[str, Any]
 UnfurlData = Dict[str, Any]
 UnfurlsDict = Dict[str, UnfurlData]
 
-# Initialize observability tools
 logger = Logger()
-tracer = Tracer()
+logfire_logger_configured = True  # configured in entrypoint
 
-# Initialize metrics conditionally
-try:
-    metrics = Metrics(
-        namespace=os.environ.get("POWERTOOLS_METRICS_NAMESPACE", "UnfurlService")
-    )
-    metrics_available = True
-except Exception:
-    metrics = None
-    metrics_available = False
+metrics = None
+metrics_available = False
 
 
 class AsyncUnfurlHandler:
@@ -195,7 +188,8 @@ class AsyncUnfurlHandler:
 
         try:
             scraper_manager = await self._get_scraper_manager()
-            result = await scraper_manager.scrape_instagram_data(url)
+            with logfire.span("scrape_instagram", url=url):
+                result = await scraper_manager.scrape_instagram_data(url)
 
             fetch_time = time.time() - start_time
 
@@ -477,9 +471,10 @@ class AsyncUnfurlHandler:
 
             # Send unfurls to Slack if any succeeded
             if unfurls:
-                await self._send_unfurl_to_slack(
-                    slack_client, channel, message_ts, unfurl_id, unfurls
-                )
+                with logfire.span("slack.chat_unfurl", channel=channel, count=len(unfurls)):
+                    await self._send_unfurl_to_slack(
+                        slack_client, channel, message_ts, unfurl_id, unfurls
+                    )
 
                 processing_time = time.time() - start_time
 

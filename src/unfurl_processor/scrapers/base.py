@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from aws_lambda_powertools import Logger
+import logfire
 
 logger = Logger()
 
