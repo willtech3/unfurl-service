@@ -9,7 +9,6 @@ import hashlib
 import hmac
 import html
 import json
-import logging
 import os
 import time
 from typing import Any, Dict, cast
@@ -32,22 +31,6 @@ logfire.configure(
     token=os.getenv("LOGFIRE_TOKEN"),
 )
 
-
-# Forward standard logging (including Powertools Logger) to Logfire
-class _LogfireForwardHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            msg = record.getMessage()
-            level = record.levelname.lower()
-            log_fn = getattr(logfire, level, logfire.info)
-            log_fn(msg, logger=record.name)
-        except Exception:
-            pass
-
-
-root_logger = logging.getLogger()
-if not any(isinstance(h, _LogfireForwardHandler) for h in root_logger.handlers):
-    root_logger.addHandler(_LogfireForwardHandler())
 metrics = None  # consolidated metrics in Logfire
 
 # Default AWS region to use when creating clients (helps unit tests)
@@ -107,8 +90,6 @@ def get_slack_secret() -> Dict[str, str]:
 def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
     logger.info("Received event", extra={"event": event})
-    with logfire.span("event_router.handle", request_id=context.aws_request_id):
-        pass
 
     # Check if this is a URL verification challenge
     body_str = event.get("body", "{}")
@@ -238,3 +219,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             "statusCode": 500,
             "body": json.dumps({"error": "Internal server error"}),
         }
+
+
+# Wrap handler with Logfire's AWS Lambda instrumentation (in-place)
+logfire.instrument_aws_lambda(lambda_handler)
