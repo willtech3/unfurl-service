@@ -26,9 +26,9 @@ logfire.configure(
     token=os.getenv("LOGFIRE_TOKEN"),
     distributed_tracing=True,  # Connect traces across API Gateway, Lambda, and SNS
     console=logfire.ConsoleOptions(
-        colors="never",  # No colors in CloudWatch
-        include_timestamps=False,  # CloudWatch adds its own timestamps
-        verbose=False,  # Keep logs concise
+        colors="always",
+        include_timestamps=True,
+        verbose=True,
     ),
 )
 
@@ -82,7 +82,7 @@ def get_slack_secret() -> Dict[str, str]:
         )
         secret_string = json.loads(response["SecretString"])
         return cast(Dict[str, str], secret_string)
-    except Exception as e:
+    except Exception:
         logfire.exception("Error retrieving Slack secret")
         raise
 
@@ -211,7 +211,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
-    except Exception as e:
+    except Exception:
         logfire.exception("Error processing event")
         return {
             "statusCode": 500,
