@@ -38,7 +38,7 @@ logfire.configure(
     service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
     environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
     token=os.getenv("LOGFIRE_TOKEN"),
-    distributed_tracing=True,  # Enable to connect traces across API Gateway, Lambda, and SNS
+    distributed_tracing=True,  # Connect traces across API Gateway, Lambda, and SNS
 )
 
 # Powertools metrics/tracer removed; using Logfire metrics and spans
