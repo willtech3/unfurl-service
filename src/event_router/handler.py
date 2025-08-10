@@ -14,7 +14,6 @@ from typing import Any, Dict, cast
 
 import boto3
 import logfire
-from aws_lambda_powertools.utilities.typing import LambdaContext
 
 # Type imports for boto3
 from botocore.client import BaseClient
@@ -55,7 +54,7 @@ def verify_slack_signature(
     """Verify the Slack request signature."""
     # Check timestamp to prevent replay attacks
     if abs(time.time() - float(timestamp)) > 60 * 5:
-        logfire.warn("Request timestamp is too old")
+        logfire.warning("Request timestamp is too old")
         return False
 
     # Create the signature base string
@@ -84,11 +83,11 @@ def get_slack_secret() -> Dict[str, str]:
         secret_string = json.loads(response["SecretString"])
         return cast(Dict[str, str], secret_string)
     except Exception as e:
-        logfire.error(f"Error retrieving Slack secret: {str(e)}")
+        logfire.exception("Error retrieving Slack secret")
         raise
 
 
-def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
     logfire.info("Received event", event=event)
 
@@ -121,7 +120,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         if not verify_slack_signature(
             body_str, slack_timestamp, slack_signature, signing_secret
         ):
-            logfire.warn("Invalid Slack signature")
+            logfire.warning("Invalid Slack signature")
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
         # Process the event
@@ -213,7 +212,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
     except Exception as e:
-        logfire.error("Error processing event", error=str(e))
+        logfire.exception("Error processing event")
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal server error"}),
