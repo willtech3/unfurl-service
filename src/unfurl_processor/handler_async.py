@@ -19,8 +19,8 @@ from urllib.parse import urlparse
 
 import boto3
 import httpx
-from aws_lambda_powertools import Logger, Metrics, Tracer
-from aws_lambda_powertools.metrics import MetricUnit
+import logfire
+from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
@@ -35,19 +35,11 @@ SlackEvent = Dict[str, Any]
 UnfurlData = Dict[str, Any]
 UnfurlsDict = Dict[str, UnfurlData]
 
-# Initialize observability tools
 logger = Logger()
-tracer = Tracer()
+logfire_logger_configured = True  # configured in entrypoint
 
-# Initialize metrics conditionally
-try:
-    metrics = Metrics(
-        namespace=os.environ.get("POWERTOOLS_METRICS_NAMESPACE", "UnfurlService")
-    )
-    metrics_available = True
-except Exception:
-    metrics = None
-    metrics_available = False
+metrics = None
+metrics_available = False
 
 
 class AsyncUnfurlHandler:
@@ -195,24 +187,19 @@ class AsyncUnfurlHandler:
 
         try:
             scraper_manager = await self._get_scraper_manager()
-            result = await scraper_manager.scrape_instagram_data(url)
+            with logfire.span("scrape_instagram", url=url):
+                result = await scraper_manager.scrape_instagram_data(url)
 
             fetch_time = time.time() - start_time
 
-            if metrics_available and metrics:
-                metrics.add_metric(
-                    name="InstagramFetchTime", unit=MetricUnit.Seconds, value=fetch_time
-                )
-                metrics.add_metric(
-                    name="InstagramFetchSuccess",
-                    unit=MetricUnit.Count,
-                    value=1 if result.success else 0,
-                )
-                metrics.add_metric(
-                    name=f"ScrapingMethod_{result.method}",
-                    unit=MetricUnit.Count,
-                    value=1,
-                )
+            # Optional Logfire metrics
+            logfire.metric_histogram("instagram_fetch_time_ms", unit="ms").record(
+                int(fetch_time * 1000)
+            )
+            logfire.metric_counter("instagram_fetch_success").add(
+                1 if result.success else 0
+            )
+            logfire.metric_counter("scraping_method").add(1)
 
             # Improved video detection logic
             has_video = False
@@ -247,10 +234,7 @@ class AsyncUnfurlHandler:
             self.logger.error(
                 f"Failed to fetch Instagram data for {url}: {str(e)}", exc_info=True
             )
-            if metrics_available and metrics:
-                metrics.add_metric(
-                    name="InstagramFetchErrors", unit=MetricUnit.Count, value=1
-                )
+            logfire.metric_counter("instagram_fetch_errors").add(1)
             return None
 
     def _format_unfurl_data(
@@ -280,34 +264,22 @@ class AsyncUnfurlHandler:
 
             if response["ok"]:
                 self.logger.info(f"Successfully sent unfurl to Slack channel {channel}")
-                if metrics_available and metrics:
-                    metrics.add_metric(
-                        name="SlackUnfurlSuccess", unit=MetricUnit.Count, value=1
-                    )
+                logfire.metric_counter("slack_unfurl_success").add(1)
                 return True
             else:
                 self.logger.error(
                     f"Slack unfurl failed: {response.get('error', 'Unknown error')}"
                 )
-                if metrics_available and metrics:
-                    metrics.add_metric(
-                        name="SlackUnfurlErrors", unit=MetricUnit.Count, value=1
-                    )
+                logfire.metric_counter("slack_unfurl_errors").add(1)
                 return False
 
         except SlackApiError as e:
             self.logger.error(f"Slack API error: {e.response['error']}")
-            if metrics_available and metrics:
-                metrics.add_metric(
-                    name="SlackApiErrors", unit=MetricUnit.Count, value=1
-                )
+            logfire.metric_counter("slack_api_errors").add(1)
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error sending unfurl: {str(e)}")
-            if metrics_available and metrics:
-                metrics.add_metric(
-                    name="SlackUnfurlErrors", unit=MetricUnit.Count, value=1
-                )
+            logfire.metric_counter("slack_unfurl_errors").add(1)
             return False
 
     def _canonicalize_instagram_url(self, url: str) -> str:
@@ -382,7 +354,6 @@ class AsyncUnfurlHandler:
                 # On error, allow processing to avoid blocking
                 return False
 
-    @tracer.capture_method
     async def process_event(
         self, event: Dict[str, Any], context: LambdaContext
     ) -> Dict[str, Any]:
@@ -477,28 +448,20 @@ class AsyncUnfurlHandler:
 
             # Send unfurls to Slack if any succeeded
             if unfurls:
-                await self._send_unfurl_to_slack(
-                    slack_client, channel, message_ts, unfurl_id, unfurls
-                )
+                with logfire.span(
+                    "slack.chat_unfurl", channel=channel, count=len(unfurls)
+                ):
+                    await self._send_unfurl_to_slack(
+                        slack_client, channel, message_ts, unfurl_id, unfurls
+                    )
 
                 processing_time = time.time() - start_time
 
-                if metrics_available and metrics:
-                    metrics.add_metric(
-                        name="TotalProcessingTime",
-                        unit=MetricUnit.Seconds,
-                        value=processing_time,
-                    )
-                    metrics.add_metric(
-                        name="LinksProcessed",
-                        unit=MetricUnit.Count,
-                        value=len(instagram_links),
-                    )
-                    metrics.add_metric(
-                        name="UnfurlsGenerated",
-                        unit=MetricUnit.Count,
-                        value=len(unfurls),
-                    )
+                logfire.metric_histogram("total_processing_time_ms", unit="ms").record(
+                    int(processing_time * 1000)
+                )
+                logfire.metric_counter("links_processed").add(len(instagram_links))
+                logfire.metric_counter("unfurls_generated").add(len(unfurls))
 
                 return {
                     "statusCode": 200,
@@ -520,10 +483,7 @@ class AsyncUnfurlHandler:
             self.logger.error(
                 f"Unexpected error in process_event: {str(e)}", exc_info=True
             )
-            if metrics_available and metrics:
-                metrics.add_metric(
-                    name="ProcessingErrors", unit=MetricUnit.Count, value=1
-                )
+            logfire.metric_counter("processing_errors").add(1)
 
             return {
                 "statusCode": 500,

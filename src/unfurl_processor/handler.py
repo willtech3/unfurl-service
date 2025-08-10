@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import boto3
 import requests
-from aws_lambda_powertools import Logger, Metrics, Tracer
+from aws_lambda_powertools import Logger, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
@@ -90,7 +90,25 @@ USER_AGENTS = [
 # Initialize Powertools logger with a service name.
 # Defaults to "UnfurlService" when POWERTOOLS_SERVICE_NAME is not set.
 logger = Logger(service=os.getenv("POWERTOOLS_SERVICE_NAME", "UnfurlService"))
-tracer = Tracer()
+
+
+# Tracing via Powertools is removed; Logfire handles tracing in Lambda entrypoints
+def _no_trace(func=None, **_kwargs):  # type: ignore[no-untyped-def]
+    if func is None:
+
+        def _decorator(f):
+            return f
+
+        return _decorator
+    return func
+
+
+class _TracerShim:
+    capture_method = staticmethod(_no_trace)
+    capture_lambda_handler = staticmethod(_no_trace)
+
+
+tracer = _TracerShim()
 
 # Initialize metrics conditionally
 if os.environ.get("DISABLE_METRICS") == "true":
@@ -131,7 +149,6 @@ def get_secrets_client() -> BaseClient:
     return boto3.client("secretsmanager", region_name=region)
 
 
-@tracer.capture_method
 def get_secret(secret_name: str) -> Dict[str, Any]:
     """Get secrets from Secrets Manager with caching."""
     if secret_name not in _secrets_cache:
@@ -141,7 +158,6 @@ def get_secret(secret_name: str) -> Dict[str, Any]:
     return _secrets_cache[secret_name]
 
 
-@tracer.capture_method
 def extract_instagram_id(url: str) -> Optional[str]:
     """Extract Instagram post ID from URL."""
     # Handle different Instagram URL formats
@@ -158,7 +174,6 @@ def extract_instagram_id(url: str) -> Optional[str]:
     return None
 
 
-@tracer.capture_method
 def get_cached_unfurl(url: str) -> Optional[Dict[str, Any]]:
     """Get cached unfurl data from DynamoDB."""
     dynamodb = get_dynamodb_resource()
@@ -186,7 +201,6 @@ def get_cached_unfurl(url: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-@tracer.capture_method
 def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
     """Cache unfurl data in DynamoDB."""
     dynamodb = get_dynamodb_resource()
@@ -210,7 +224,6 @@ def cache_unfurl(url: str, unfurl_data: Dict[str, Any]) -> None:
         logger.error("Error writing to cache", extra={"error": str(e)})
 
 
-@tracer.capture_method
 def fetch_instagram_data(url: str) -> Optional[Dict[str, Any]]:
     """
     Fetch Instagram data using advanced scraping with enhanced bot evasion.
@@ -926,7 +939,6 @@ def format_unfurl_data(data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any
     return unfurl
 
 
-@tracer.capture_method
 def send_unfurl_to_slack(
     slack_client: WebClient, channel: str, ts: str, unfurls: Dict[str, Dict[str, Any]]
 ) -> bool:
@@ -1031,19 +1043,15 @@ def _lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, 
         }
 
 
-# Apply decorators conditionally based on metrics availability
+# Apply decorators conditionally based on metrics availability (no tracing)
 if metrics:
     lambda_handler = logger.inject_lambda_context(
         correlation_id_path="Records[0].Sns.MessageId"
-    )(
-        tracer.capture_lambda_handler(
-            metrics.log_metrics(capture_cold_start_metric=True)(_lambda_handler)
-        )
-    )
+    )(metrics.log_metrics(capture_cold_start_metric=True)(_lambda_handler))
 else:
     lambda_handler = logger.inject_lambda_context(
         correlation_id_path="Records[0].Sns.MessageId"
-    )(tracer.capture_lambda_handler(_lambda_handler))
+    )(_lambda_handler)
 
 
 # NEW: Helper to canonicalize Instagram URLs by removing query parameters and fragments

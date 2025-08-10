@@ -120,13 +120,17 @@ class UnfurlServiceStack(Stack):
                 "SNS_TOPIC_ARN": unfurl_topic.topic_arn,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "LOG_LEVEL": "INFO",
+                "LOGFIRE_SERVICE_NAME": "unfurl-event-router",
+                "LOGFIRE_ENV": env_name,
+                # Provide token directly via env (Option A)
+                "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
             },
             timeout=Duration.seconds(10),
             memory_size=256,
             reserved_concurrent_executions=10,
             layers=[deps_layer],
             log_retention=logs.RetentionDays.ONE_WEEK,
-            tracing=lambda_.Tracing.ACTIVE,
+            tracing=lambda_.Tracing.DISABLED,
         )
 
         # Grant permissions to event router
@@ -179,8 +183,9 @@ class UnfurlServiceStack(Stack):
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "INFO",
-                "POWERTOOLS_METRICS_NAMESPACE": f"UnfurlService/{env_name}",
-                "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
+                "LOGFIRE_SERVICE_NAME": "unfurl-processor",
+                "LOGFIRE_ENV": env_name,
+                "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
                 "PYTHONPATH": "/var/task:/var/runtime",
             },
@@ -188,7 +193,7 @@ class UnfurlServiceStack(Stack):
             memory_size=1024,  # Increased for browser automation
             reserved_concurrent_executions=10,  # Reduced due to higher memory usage
             log_retention=logs.RetentionDays.ONE_WEEK,
-            tracing=lambda_.Tracing.ACTIVE,
+            tracing=lambda_.Tracing.DISABLED,
         )
 
         # Grant permissions to unfurl processor
@@ -229,9 +234,9 @@ class UnfurlServiceStack(Stack):
             deploy_options=apigw.StageOptions(
                 stage_name="prod",
                 logging_level=apigw.MethodLoggingLevel.INFO,
-                data_trace_enabled=True,
-                metrics_enabled=True,
-                tracing_enabled=True,
+                data_trace_enabled=False,
+                metrics_enabled=False,
+                tracing_enabled=False,
                 throttling_rate_limit=100,
                 throttling_burst_limit=200,
             ),

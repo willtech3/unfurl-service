@@ -5,9 +5,10 @@ import asyncio
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
+import logfire
 from aws_lambda_powertools import Logger
 
 from ..merge_utils import merge_instagram_results
@@ -130,16 +131,17 @@ class ScraperManager:
                     f"📊 Attempting scraper {i}/{len(self.scrapers)}: {scraper.name}"
                 )
 
-                # Execute scraping (async or sync based on scraper)
-                if hasattr(scraper, "scrape") and asyncio.iscoroutinefunction(
-                    scraper.scrape
-                ):
-                    result = await scraper.scrape(url)
-                else:
-                    # Run sync scrapers in thread pool to avoid blocking
-                    result = await asyncio.get_event_loop().run_in_executor(
-                        None, scraper.scrape, url
-                    )
+                # Execute scraping inside a Logfire span
+                with logfire.span("scraper.run", scraper=scraper.name, url=url):
+                    if hasattr(scraper, "scrape") and asyncio.iscoroutinefunction(
+                        scraper.scrape
+                    ):
+                        result = await scraper.scrape(url)
+                    else:
+                        # Run sync scrapers in thread pool to avoid blocking
+                        result = await asyncio.get_event_loop().run_in_executor(
+                            None, scraper.scrape, url
+                        )
 
                 if result.success and result.data:
                     # Tag data with scraper provenance for merging
@@ -175,7 +177,7 @@ class ScraperManager:
         # Aggregate and select
         if results:
             # Sort results by quality score (desc) for merge priority
-            scored: list[tuple[int, ScrapingResult]] = [
+            scored: List[Tuple[int, ScrapingResult]] = [
                 (self.calculate_quality_score(r), r) for r in results
             ]
             scored.sort(key=lambda x: x[0], reverse=True)
