@@ -29,7 +29,7 @@ logfire.configure(
     service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
     environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
     token=os.getenv("LOGFIRE_TOKEN"),
-    distributed_tracing=False,  # Disable unintentional trace context propagation from AWS
+    distributed_tracing=True,  # Enable to connect traces across API Gateway, Lambda, and SNS
 )
 
 metrics = None  # consolidated metrics in Logfire
