@@ -1,6 +1,6 @@
 """Event router Lambda handler for Slack events.
 
-Uses Logfire for unified observability - logs appear in both CloudWatch 
+Uses Logfire for unified observability - logs appear in both CloudWatch
 (via console output) and Logfire platform (via OTLP).
 """
 
