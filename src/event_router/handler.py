@@ -1,8 +1,7 @@
 """Event router Lambda handler for Slack events.
 
-Consolidated observability using Logfire for traces, spans, and metrics.
-CloudWatch logs remain via Lambda stdout; we keep Powertools Logger for
-structured JSON logging but remove Powertools Tracer/Metrics.
+Uses Logfire for unified observability - logs appear in both CloudWatch 
+(via console output) and Logfire platform (via OTLP).
 """
 
 import hashlib
@@ -15,21 +14,23 @@ from typing import Any, Dict, cast
 
 import boto3
 import logfire
-from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 # Type imports for boto3
 from botocore.client import BaseClient
 from opentelemetry.propagate import inject
 
-logger = Logger()
-
-# Configure Logfire at import time for cold start
+# Configure Logfire with console output for CloudWatch
 logfire.configure(
     service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
     environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
     token=os.getenv("LOGFIRE_TOKEN"),
     distributed_tracing=True,  # Connect traces across API Gateway, Lambda, and SNS
+    console=logfire.ConsoleOptions(
+        colors="never",  # No colors in CloudWatch
+        include_timestamps=False,  # CloudWatch adds its own timestamps
+        verbose=False,  # Keep logs concise
+    ),
 )
 
 metrics = None  # consolidated metrics in Logfire
@@ -54,7 +55,7 @@ def verify_slack_signature(
     """Verify the Slack request signature."""
     # Check timestamp to prevent replay attacks
     if abs(time.time() - float(timestamp)) > 60 * 5:
-        logger.warning("Request timestamp is too old")
+        logfire.warn("Request timestamp is too old")
         return False
 
     # Create the signature base string
@@ -83,14 +84,13 @@ def get_slack_secret() -> Dict[str, str]:
         secret_string = json.loads(response["SecretString"])
         return cast(Dict[str, str], secret_string)
     except Exception as e:
-        logger.error(f"Error retrieving Slack secret: {str(e)}")
+        logfire.error(f"Error retrieving Slack secret: {str(e)}")
         raise
 
 
-@logger.inject_lambda_context(correlation_id_path="requestContext.requestId")
 def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
-    logger.info("Received event", extra={"event": event})
+    logfire.info("Received event", event=event)
 
     # Check if this is a URL verification challenge
     body_str = event.get("body", "{}")
@@ -121,7 +121,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         if not verify_slack_signature(
             body_str, slack_timestamp, slack_signature, signing_secret
         ):
-            logger.warning("Invalid Slack signature")
+            logfire.warn("Invalid Slack signature")
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
         # Process the event
@@ -139,9 +139,9 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
             channel_id = event_data.get("channel")
 
             if channel_id == "COMPOSER":
-                logger.info(
+                logfire.info(
                     "Ignoring COMPOSER link_shared event",
-                    extra={"links": event_data.get("links", [])},
+                    links=event_data.get("links", []),
                 )
 
                 # metrics consolidated in Logfire; no CloudWatch EMF emission
@@ -170,7 +170,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                 sns_topic_arn = os.environ.get("SNS_TOPIC_ARN")
 
                 if not sns_topic_arn:
-                    logger.error("SNS_TOPIC_ARN not configured")
+                    logfire.error("SNS_TOPIC_ARN not configured")
                     return {
                         "statusCode": 500,
                         "body": json.dumps({"error": "Internal server error"}),
@@ -201,12 +201,10 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
                     MessageAttributes=msg_attrs,
                 )
 
-                logger.info(
+                logfire.info(
                     "Published Instagram links to SNS",
-                    extra={
-                        "links": instagram_links,
-                        "channel": event_data.get("channel"),
-                    },
+                    links=instagram_links,
+                    channel=event_data.get("channel"),
                 )
 
                 # Example Logfire metric
@@ -215,7 +213,7 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
     except Exception as e:
-        logger.error("Error processing event", extra={"error": str(e)})
+        logfire.error("Error processing event", error=str(e))
         return {
             "statusCode": 500,
             "body": json.dumps({"error": "Internal server error"}),
