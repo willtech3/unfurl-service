@@ -111,7 +111,7 @@ class UnfurlServiceStack(Stack):
         event_router = lambda_.Function(
             self,
             "EventRouter",
-            function_name=f"unfurl-event-router-{env_name}",
+            function_name="unfurl-event-router",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
             handler="handler.lambda_handler",
@@ -119,7 +119,7 @@ class UnfurlServiceStack(Stack):
             environment={
                 "SNS_TOPIC_ARN": unfurl_topic.topic_arn,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
-                "LOG_LEVEL": "INFO",
+                "LOG_LEVEL": "DEBUG",
                 "LOGFIRE_SERVICE_NAME": "unfurl-event-router",
                 "LOGFIRE_ENV": env_name,
                 # Provide token directly via env (Option A)
@@ -142,7 +142,7 @@ class UnfurlServiceStack(Stack):
         unfurl_processor = lambda_.Function(
             self,
             "UnfurlProcessor",
-            function_name=f"unfurl-processor-{env_name}-v2",
+            function_name="unfurl-processor",
             runtime=lambda_.Runtime.FROM_IMAGE,
             architecture=lambda_.Architecture.ARM_64,
             handler=lambda_.Handler.FROM_IMAGE,
@@ -182,7 +182,7 @@ class UnfurlServiceStack(Stack):
                 "DEDUPLICATION_TABLE_NAME": deduplication_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
-                "LOG_LEVEL": "INFO",
+                "LOG_LEVEL": "DEBUG",
                 "LOGFIRE_SERVICE_NAME": "unfurl-processor",
                 "LOGFIRE_ENV": env_name,
                 "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
