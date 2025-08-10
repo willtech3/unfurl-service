@@ -141,6 +141,7 @@ jobs:
             --context "env=${{ env.AWS_REGION }}" \
             --context "account=$AWS_ACCOUNT" \
             --context "region=${{ env.AWS_REGION }}" \
+            --context "logfire_token=${{ secrets.LOGFIRE_TOKEN }}" \
             --context "@aws-cdk/core:bootstrapQualifier=hnb659fds" \
             --context "bootstrapQualifier=hnb659fds" \
             --parameters "BootstrapVersion=/cdk-bootstrap/hnb659fds/version"
