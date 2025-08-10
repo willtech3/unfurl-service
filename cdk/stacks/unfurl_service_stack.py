@@ -93,9 +93,9 @@ class UnfurlServiceStack(Stack):
                                 (
                                     'python -c "import sys; '
                                     "sys.path.insert(0, '/asset-output/python'); "
-                                    "import aws_xray_sdk; "
-                                    "print('✅ aws-xray-sdk installed successfully')\" "
-                                    "|| echo '❌ aws-xray-sdk import failed'"
+                                    "import logfire; "
+                                    "print('✅ logfire installed successfully')\" "
+                                    "|| echo '❌ logfire import failed'"
                                 ),
                             ]
                         ),
