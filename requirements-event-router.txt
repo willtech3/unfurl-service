@@ -11,7 +11,5 @@ typing-extensions==4.7.0
 wrapt==1.16.0
 
 # Observability (Logfire)
-logfire[aws-lambda]==0.50.0
+logfire[aws-lambda]==4.1.0
 opentelemetry-api==1.22.0
-# Required by logfire testing module (even in production)
-pytest==8.3.4
