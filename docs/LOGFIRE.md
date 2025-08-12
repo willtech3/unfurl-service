@@ -24,7 +24,7 @@ The CDK stack injects the token into the Lambda envs:
 ### Other environment variables
 These are set by the CDK stack and generally don’t need changes:
 - `LOGFIRE_SERVICE_NAME`: logical service name (`unfurl-event-router`, `unfurl-processor`).
-- `LOGFIRE_ENV`: environment (derived from CDK context `env`, e.g., `dev`, `staging`, `prod`).
+- `LOG_LEVEL` (optional): controls stdlib root logger level (e.g., `INFO`, `DEBUG`).
 
 Optional (if you ever need sampling/cost control later):
 - `LOGFIRE_SAMPLE_RATE`: float 0.0–1.0 (not set by default; no sampling).

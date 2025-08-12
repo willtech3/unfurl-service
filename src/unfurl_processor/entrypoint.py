@@ -11,7 +11,6 @@ Optimized for fast cold starts and maximum concurrency with:
 
 import asyncio
 import json
-import os
 from typing import Any, Dict
 
 # Performance optimization: Use uvloop if available
@@ -35,7 +34,7 @@ from .handler_async import AsyncUnfurlHandler
 logger = Logger()
 
 # Configure Logfire as the consolidated backend
-setup_logfire(include_console=False)
+setup_logfire(enable_console_output=False)
 
 # Powertools metrics/tracer removed; using Logfire metrics and spans
 metrics_available = False

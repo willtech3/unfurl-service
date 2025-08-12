@@ -165,8 +165,8 @@ uv run pytest tests/test_scrapers/ -v
 Environment variables (set in CDK):
 
 - `LOGFIRE_SERVICE_NAME`: service identifier for Logfire traces/logs.
-- `LOGFIRE_ENV`: environment name (e.g., `dev`, `staging`, `prod`).
 - `LOGFIRE_TOKEN`: ingestion token (provided via CDK context `logfire_token`).
+- `LOG_LEVEL` (optional): controls stdlib root logger level (e.g., `INFO`, `DEBUG`).
 
 Notes:
 

@@ -21,7 +21,7 @@ from botocore.client import BaseClient
 from opentelemetry.propagate import inject
 
 # Configure Logfire and bridge stdlib logging (with console output)
-setup_logfire(include_console=True)
+setup_logfire(enable_console_output=True)
 
 metrics = None  # consolidated metrics in Logfire
 
