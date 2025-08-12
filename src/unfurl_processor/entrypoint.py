@@ -23,6 +23,7 @@ except ImportError:
     pass
 
 import logfire
+from observability.logging import setup_logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from opentelemetry import context as otel_context
@@ -34,12 +35,7 @@ from .handler_async import AsyncUnfurlHandler
 logger = Logger()
 
 # Configure Logfire as the consolidated backend
-logfire.configure(
-    service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
-    environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
-    token=os.getenv("LOGFIRE_TOKEN"),
-    distributed_tracing=True,  # Connect traces across API Gateway, Lambda, and SNS
-)
+setup_logfire(include_console=False)
 
 # Powertools metrics/tracer removed; using Logfire metrics and spans
 metrics_available = False
