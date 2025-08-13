@@ -48,22 +48,26 @@ def setup_logfire(*, enable_console_output: bool = False) -> None:
         console=console_opts,
     )
 
+    # Bridge stdlib logging to Logfire using the official handler name
+    # per current Logfire docs: LogfireLoggingHandler
     try:
-        from logfire import LogfireHandler  # type: ignore
-    except ImportError:
+        handler_cls = getattr(
+            logfire, "LogfireLoggingHandler"
+        )  # type: ignore[attr-defined]
+    except AttributeError:
         logging.getLogger(__name__).warning(
-            "LogfireHandler unavailable; stdlib logs will not be bridged"
+            "LogfireLoggingHandler unavailable; stdlib logs will not be bridged"
         )
     else:
         root_logger = logging.getLogger()
-        if not any(isinstance(h, LogfireHandler) for h in root_logger.handlers):
-            root_logger.addHandler(LogfireHandler())
+        if not any(isinstance(h, handler_cls) for h in root_logger.handlers):
+            root_logger.addHandler(handler_cls())
 
         # Explicitly bridge AWS Lambda Powertools logger as it can be
         # instantiated at import time before this setup runs.
         powertools_logger = logging.getLogger("aws_lambda_powertools")
-        if not any(isinstance(h, LogfireHandler) for h in powertools_logger.handlers):
-            powertools_logger.addHandler(LogfireHandler())
+        if not any(isinstance(h, handler_cls) for h in powertools_logger.handlers):
+            powertools_logger.addHandler(handler_cls())
 
     desired_level = _parse_log_level(os.getenv("LOG_LEVEL"))
     if desired_level is not None:
