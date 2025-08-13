@@ -114,8 +114,10 @@ class UnfurlServiceStack(Stack):
             function_name="unfurl-event-router",
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
-            handler="handler.lambda_handler",
-            code=lambda_.Code.from_asset("src/event_router"),
+            handler="event_router.handler.lambda_handler",
+            # Package the entire src tree so internal packages like `observability`
+            # are available to the function at runtime.
+            code=lambda_.Code.from_asset("src"),
             environment={
                 "SNS_TOPIC_ARN": unfurl_topic.topic_arn,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
