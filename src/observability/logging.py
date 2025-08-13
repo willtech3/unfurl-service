@@ -59,6 +59,12 @@ def setup_logfire(*, enable_console_output: bool = False) -> None:
         if not any(isinstance(h, LogfireHandler) for h in root_logger.handlers):
             root_logger.addHandler(LogfireHandler())
 
+        # Explicitly bridge AWS Lambda Powertools logger as it can be
+        # instantiated at import time before this setup runs.
+        powertools_logger = logging.getLogger("aws_lambda_powertools")
+        if not any(isinstance(h, LogfireHandler) for h in powertools_logger.handlers):
+            powertools_logger.addHandler(LogfireHandler())
+
     desired_level = _parse_log_level(os.getenv("LOG_LEVEL"))
     if desired_level is not None:
         logging.getLogger().setLevel(desired_level)
