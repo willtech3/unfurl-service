@@ -14,23 +14,14 @@ from typing import Any, Dict, cast
 
 import boto3
 import logfire
+from observability.logging import setup_logfire
 
 # Type imports for boto3
 from botocore.client import BaseClient
 from opentelemetry.propagate import inject
 
-# Configure Logfire with console output for CloudWatch
-logfire.configure(
-    service_name=os.getenv("LOGFIRE_SERVICE_NAME", "unfurl-service"),
-    environment=os.getenv("LOGFIRE_ENV", os.getenv("ENV", "dev")),
-    token=os.getenv("LOGFIRE_TOKEN"),
-    distributed_tracing=True,  # Connect traces across API Gateway, Lambda, and SNS
-    console=logfire.ConsoleOptions(
-        colors="always",
-        include_timestamps=True,
-        verbose=True,
-    ),
-)
+# Configure Logfire and bridge stdlib logging (with console output)
+setup_logfire(enable_console_output=True)
 
 metrics = None  # consolidated metrics in Logfire
 

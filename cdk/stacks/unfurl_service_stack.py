@@ -121,7 +121,6 @@ class UnfurlServiceStack(Stack):
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "LOG_LEVEL": "DEBUG",
                 "LOGFIRE_SERVICE_NAME": "unfurl-event-router",
-                "LOGFIRE_ENV": env_name,
                 # Provide token directly via env (Option A)
                 "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
             },
@@ -184,7 +183,6 @@ class UnfurlServiceStack(Stack):
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "DEBUG",
                 "LOGFIRE_SERVICE_NAME": "unfurl-processor",
-                "LOGFIRE_ENV": env_name,
                 "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
                 "PYTHONPATH": "/var/task:/var/runtime",
