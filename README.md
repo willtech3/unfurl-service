@@ -71,8 +71,7 @@ unfurl-service/
 │       └── entrypoint.py       # Container entrypoint (calls AsyncUnfurlHandler)
 ├── scripts/                     # Development and deployment scripts
 │   ├── validate_environment.py # Environment validation
-│   ├── test_docker_build.sh   # Local Docker testing
-│   └── migrate_to_container.py # Migration assistance
+│   └── test_docker_build.sh   # Local Docker testing
 ├── tests/                       # Comprehensive test suite
 ├── Dockerfile                   # Multi-stage container build
 ├── requirements-docker.txt      # Container dependencies
@@ -116,12 +115,10 @@ For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md).
 ### Quick Deploy via GitHub Actions
 
 1. **Configure Secrets**: Set up required GitHub secrets
-2. **Push to Main**: Deployment triggers automatically
+2. **Merge to `main`**: Deployment triggers automatically after PR merge
 
    ```bash
-   git add .
-   git commit -m "Deploy container-based unfurl service"
-   git push origin main
+   # Open a PR to main; once approved and merged, CI/CD deploys automatically
    ```
 
 ### Manual Deployment
