@@ -751,17 +751,9 @@ class PlaywrightScraper(BaseScraper):
 
     def _extract_post_id(self, url: str) -> Optional[str]:
         """Extract Instagram post ID from URL."""
-        try:
-            from urllib.parse import urlparse
+        from ..url_utils import extract_instagram_id
 
-            parsed = urlparse(url)
-            path_parts = [p for p in parsed.path.split("/") if p]
-
-            if len(path_parts) >= 2 and path_parts[0] in ["p", "reel", "tv"]:
-                return path_parts[1]
-            return None
-        except Exception:
-            return None
+        return extract_instagram_id(url)
 
     async def cleanup(self) -> None:
         """Clean up browser resources."""

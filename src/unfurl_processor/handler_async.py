@@ -15,7 +15,6 @@ import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 import boto3
 import httpx
@@ -29,6 +28,11 @@ from slack_sdk.web.async_client import AsyncWebClient
 # Using AWS Lambda Powertools logger instead of src.logger
 from .scrapers.manager import ScraperManager
 from .slack_formatter import SlackFormatter
+from .url_utils import (
+    canonicalize_instagram_url,
+    extract_instagram_id,
+    get_cache_key,
+)
 
 # Type aliases for better readability
 SlackEvent = Dict[str, Any]
@@ -118,15 +122,7 @@ class AsyncUnfurlHandler:
 
     def _extract_instagram_id(self, url: str) -> Optional[str]:
         """Extract Instagram post ID from URL."""
-        try:
-            parsed = urlparse(url)
-            path_parts = [p for p in parsed.path.split("/") if p]
-
-            if len(path_parts) >= 2 and path_parts[0] in ["p", "reel", "tv"]:
-                return path_parts[1]
-            return None
-        except Exception:
-            return None
+        return extract_instagram_id(url)
 
     async def _get_cached_unfurl(self, url: str) -> Optional[Dict[str, Any]]:
         """Get cached unfurl data from DynamoDB."""
@@ -164,9 +160,11 @@ class AsyncUnfurlHandler:
             if not instagram_id:
                 return
 
+            # Use canonical URL as cache key for consistency
+            cache_key = get_cache_key(url)
             table.put_item(
                 Item={
-                    "url": url,
+                    "url": cache_key,
                     "post_id": instagram_id,
                     "unfurl_data": unfurl_data,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -284,8 +282,7 @@ class AsyncUnfurlHandler:
 
     def _canonicalize_instagram_url(self, url: str) -> str:
         """Return the canonical Instagram URL."""
-        parsed = urlparse(url)
-        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        return canonicalize_instagram_url(url)
 
     def _extract_instagram_links(
         self, links: List[Dict[str, str]]
@@ -330,9 +327,11 @@ class AsyncUnfurlHandler:
                 return False
 
             # Try to add URL to deduplication table with conditional write
+            # Use canonical URL as deduplication key for consistency
+            cache_key = get_cache_key(url)
             table.put_item(
                 Item={
-                    "url": url,
+                    "url": cache_key,
                     "processing_started": int(time.time()),
                     "ttl": int(time.time()) + 300,  # 5 minutes TTL
                 },

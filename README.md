@@ -30,17 +30,15 @@ The service uses a sophisticated multi-layer approach:
    - Headless Chromium with stealth settings
    - Human-like behavior simulation
    - Advanced bot detection evasion
+   - ~90% success rate
 
 2. **Enhanced HTTP Scraping** (Secondary)
    - Session-based requests with realistic headers
    - User agent rotation and proxy support
    - Brotli/zstandard decompression handling
+   - ~60% success rate
 
-3. **oEmbed API Fallback** (Tertiary)
-   - Instagram Graph API integration
-   - Legacy oEmbed endpoint support
-
-4. **Minimal Fallback** (Last Resort)
+3. **Minimal Fallback** (Last Resort)
    - Basic URL metadata extraction
    - Ensures graceful degradation
 
@@ -66,8 +64,8 @@ unfurl-service/
 │       ├── scrapers/           # Modular scraping system
 │       │   ├── manager.py      # Orchestrates fallback strategies
 │       │   ├── playwright_scraper.py  # Browser automation
-│       │   ├── http_scraper.py        # Enhanced HTTP scraping
-│       │   └── oembed_scraper.py      # oEmbed API fallback
+│       │   └── http_scraper.py        # Enhanced HTTP scraping
+│       ├── url_utils.py        # Consolidated URL handling utilities
 │       ├── slack_formatter.py  # Rich Slack unfurl formatting
 │       ├── handler_async.py    # Async container Lambda handler
 │       └── entrypoint.py       # Container entrypoint (calls AsyncUnfurlHandler)
