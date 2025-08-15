@@ -4,10 +4,8 @@ orchestration."""
 import asyncio
 import os
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-import boto3
 import logfire
 from aws_lambda_powertools import Logger
 
@@ -25,15 +23,8 @@ class ScraperManager:
     def __init__(self):
         self.logger = logger
 
-        # Initialize CloudWatch client for metrics
-        try:
-            self.cloudwatch = boto3.client("cloudwatch")
-            self.metrics_enabled = True
-            self.logger.info("✅ CloudWatch metrics enabled")
-        except Exception as e:
-            self.logger.warning(f"⚠️ CloudWatch metrics disabled: {e}")
-            self.cloudwatch = None
-            self.metrics_enabled = False
+        # CloudWatch metrics removed; metrics consolidated in Logfire
+        self.metrics_enabled = False
 
         # Initialize proxy configuration
         proxy_urls = []
@@ -59,37 +50,9 @@ class ScraperManager:
             f"ScraperManager initialized with {len(self.scrapers)} scrapers"
         )
 
-    def _emit_metric(
-        self,
-        metric_name: str,
-        value: float,
-        unit: str = "Count",
-        dimensions: Optional[Dict[str, str]] = None,
-    ):
-        """Emit CloudWatch metric with error handling."""
-        if not self.metrics_enabled:
-            return
-
-        try:
-            metric_data = {
-                "MetricName": metric_name,
-                "Value": value,
-                "Unit": unit,
-                "Timestamp": datetime.now(timezone.utc),
-            }
-
-            if dimensions:
-                metric_data["Dimensions"] = [
-                    {"Name": k, "Value": v} for k, v in dimensions.items()
-                ]
-
-            self.cloudwatch.put_metric_data(
-                Namespace="UnfurlService/Scrapers", MetricData=[metric_data]
-            )
-
-        except Exception as e:
-            # Don't let metrics failures break scraping
-            self.logger.warning(f"Failed to emit metric {metric_name}: {e}")
+    def _emit_metric(self, *_: Any, **__: Any) -> None:
+        """Deprecated: CloudWatch metric emission removed."""
+        return
 
     async def scrape_instagram_data(self, url: str) -> ScrapingResult:
         """
@@ -141,32 +104,29 @@ class ScraperManager:
                     # Tag data with scraper provenance for merging
                     result.data["__scraper_method"] = result.method
                     results.append(result)
-                    self._emit_metric(
-                        "ScraperSuccess", 1, dimensions={"Scraper": scraper.name}
-                    )
+                    from observability import metrics as m
+
+                    m.scraper_success.add(1)
                 else:
                     error_msg = f"{scraper.name} failed: {result.error}"
                     errors.append(error_msg)
                     self.logger.warning(f"❌ {error_msg}")
-                    self._emit_metric(
-                        "ScraperFailure", 1, dimensions={"Scraper": scraper.name}
-                    )
+                    from observability import metrics as m
+
+                    m.scraper_failure.add(1)
 
                 # Emit response time metric for each scraper
-                self._emit_metric(
-                    "ScraperResponseTime",
-                    result.response_time_ms,
-                    unit="Milliseconds",
-                    dimensions={"Scraper": scraper.name},
-                )
+                from observability import metrics as m
+
+                m.scraper_response_time_ms.record(int(result.response_time_ms))
 
             except Exception as e:
                 error_msg = f"{scraper.name} exception: {str(e)}"
                 errors.append(error_msg)
                 self.logger.error(f"💥 {error_msg}")
-                self._emit_metric(
-                    "ScraperException", 1, dimensions={"Scraper": scraper.name}
-                )
+                from observability import metrics as m
+
+                m.scraper_exception.add(1)
 
         # Aggregate and select
         if results:
@@ -181,9 +141,6 @@ class ScraperManager:
             # Log individual quality scores
             for score, res in scored:
                 self.logger.info("📊 %s: quality score %s", res.method, score)
-                self._emit_metric(
-                    "QualityScore", score, dimensions={"Scraper": res.method}
-                )
 
             # Merge field-level data in score order (highest first)
             merged_data = merge_instagram_results([r.data for _, r in scored])
@@ -216,17 +173,19 @@ class ScraperManager:
                 total_time,
                 len(results),
             )
-            self._emit_metric(
-                "BestQualityScraper", 1, dimensions={"Scraper": "aggregated"}
-            )
-            self._emit_metric("ScrapingTime", total_time, unit="Milliseconds")
+            from observability import metrics as m
+
+            m.scraper_success.add(1)
+            m.scraper_response_time_ms.record(int(total_time))
 
             return aggregated_result
         else:
             # All scrapers failed
             total_time = self.measure_time(start_time)
             self.logger.error(f"❌ All {len(self.scrapers)} scrapers failed for {url}")
-            self._emit_metric("AllScrapersFailed", 1)
+            from observability import metrics as m
+
+            m.all_scrapers_failed.add(1)
 
             return ScrapingResult(
                 success=False,
@@ -298,8 +257,10 @@ class ScraperManager:
             f"✅ Concurrent scraping completed: {successful}/{len(urls)} successful "
             f"in {total_time}ms"
         )
-        self._emit_metric("ConcurrentScrapingSuccess", successful)
-        self._emit_metric("ConcurrentScrapingTime", total_time, unit="Milliseconds")
+        from observability import metrics as m
+
+        m.scraper_success.add(successful)
+        m.scraper_response_time_ms.record(int(total_time))
 
         return final_results
 
@@ -331,14 +292,7 @@ class ScraperManager:
                     "error": result.error,
                     "response_time_ms": result.response_time_ms,
                 }
-                self._emit_metric(
-                    "ScraperHealthCheck",
-                    1,
-                    dimensions={
-                        "Scraper": scraper.name,
-                        "Status": health_status["scrapers"][scraper.name]["status"],
-                    },
-                )
+                # Health check counters are noisy; log only
 
             except Exception as e:
                 health_status["scrapers"][scraper.name] = {
@@ -346,14 +300,7 @@ class ScraperManager:
                     "error": str(e),
                     "response_time_ms": None,
                 }
-                self._emit_metric(
-                    "ScraperHealthCheck",
-                    1,
-                    dimensions={
-                        "Scraper": scraper.name,
-                        "Status": health_status["scrapers"][scraper.name]["status"],
-                    },
-                )
+                # Health check counters are noisy; log only
 
         return health_status
 
@@ -522,20 +469,12 @@ class ScraperManager:
 
         # Emit detailed quality metrics
         content_type = "video" if quality_factors["has_video"] else "photo"
-        self._emit_metric(
-            "ContentType",
-            1,
-            dimensions={"Type": content_type, "Scraper": result.method},
-        )
+        # Content type recorded implicitly via logs; no explicit metric
 
         # Emit quality factor metrics
         for factor, has_factor in quality_factors.items():
             if has_factor:
-                self._emit_metric(
-                    "QualityFactor",
-                    1,
-                    dimensions={"Factor": factor, "Scraper": result.method},
-                )
+                pass
 
         # Set has_video based on content analysis
         has_video = (

@@ -197,8 +197,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     channel=event_data.get("channel"),
                 )
 
-                # Example Logfire metric
-                logfire.metric_counter("links_processed").add(len(instagram_links))
+                # Example Logfire metric via centralized instruments
+                from observability import metrics as m
+
+                m.links_processed.add(len(instagram_links))
 
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}
 
