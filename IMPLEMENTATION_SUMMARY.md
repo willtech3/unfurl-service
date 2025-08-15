@@ -34,7 +34,8 @@ Implemented intelligent fallback strategy with separate scrapers:
   - `oembed_scraper.py` - API fallback scraper
   - `manager.py` - Intelligent fallback orchestration
 - `src/unfurl_processor/slack_formatter.py` - Enhanced Slack formatting
-- `src/unfurl_processor/handler_new.py` - Enhanced async Lambda handler
+- `src/unfurl_processor/handler_async.py` - Enhanced async Lambda handler (AsyncUnfurlHandler)
+- `src/unfurl_processor/entrypoint.py` - Container entry point
 
 ### Deployment
 - `Dockerfile` - Multi-stage container with Playwright browsers

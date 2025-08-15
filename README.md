@@ -69,8 +69,8 @@ unfurl-service/
 │       │   ├── http_scraper.py        # Enhanced HTTP scraping
 │       │   └── oembed_scraper.py      # oEmbed API fallback
 │       ├── slack_formatter.py  # Rich Slack unfurl formatting
-│       ├── handler_new.py      # Async container Lambda handler
-│       └── entrypoint.py       # Container initialization
+│       ├── handler_async.py    # Async container Lambda handler
+│       └── entrypoint.py       # Container entrypoint (calls AsyncUnfurlHandler)
 ├── scripts/                     # Development and deployment scripts
 │   ├── validate_environment.py # Environment validation
 │   ├── test_docker_build.sh   # Local Docker testing
