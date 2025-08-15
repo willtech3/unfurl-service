@@ -47,8 +47,10 @@ cdk deploy
 
 **Setup (One-time):**
 ```bash
-# Run the setup script
-./setup-fast-deployment.sh
+# Build a base image with Playwright browsers and push to ECR (example)
+docker build -f Dockerfile.base -t unfurl-base:latest --platform linux/arm64 .
+docker tag unfurl-base:latest <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/unfurl-base:latest
+docker push <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/unfurl-base:latest
 ```
 
 **How to use:**
@@ -66,16 +68,13 @@ cdk deploy
 ## 🔄 Switching Between Modes
 
 ### Activate Fast Mode
-```bash
-./setup-fast-deployment.sh
+Switch your Dockerfile `FROM` to the ECR base image:
+```dockerfile
+FROM <ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/unfurl-base:latest
 ```
 
 ### Revert to Standard Mode
-```bash
-./revert-fast-deployment.sh
-# OR manually:
-cp Dockerfile.original Dockerfile
-```
+Switch your Dockerfile back to the standard Lambda base image.
 
 ## 🏗️ How Fast Deployment Works
 
@@ -138,10 +137,7 @@ COPY src/ ${LAMBDA_TASK_ROOT}/
 
 **If fast deployment fails:**
 ```bash
-# Revert to standard mode
-./revert-fast-deployment.sh
-
-# Or check ECR connectivity
+# Check ECR connectivity
 aws ecr describe-repositories --repository-names unfurl-base
 ```
 

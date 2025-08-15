@@ -8,7 +8,7 @@ All metrics are published to the `UnfurlService/Scrapers` namespace.
 
 | Metric Name | Description | Dimensions |
 |-------------|-------------|------------|
-| `ScraperSuccess` | Successful scraper executions | `Scraper` (playwright, http, oembed) |
+| `ScraperSuccess` | Successful scraper executions | `Scraper` (playwright, http) |
 | `ScraperFailure` | Failed scraper executions | `Scraper` |
 | `ScraperException` | Scraper exceptions/crashes | `Scraper` |
 | `AllScrapersFailed` | When all scrapers fail for a URL | None |
@@ -174,7 +174,7 @@ aws logs insights start-query \
   --log-group-name /aws/lambda/unfurl-service \
   --start-time $(date -d '24 hours ago' +%s) \
   --end-time $(date +%s) \
-  --query-string 'filter @message like /✅.*oEmbed|✅.*playwright|✅.*http/ | stats count() by @message'
+  --query-string 'filter @message like /✅.*playwright|✅.*http/ | stats count() by @message'
 ```
 
 ### Check recent quality scores:

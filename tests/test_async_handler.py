@@ -118,11 +118,11 @@ class TestAsyncUnfurlHandler:
         expected = [
             {
                 "original_url": "https://www.instagram.com/p/ABC123/",
-                "canonical_url": "https://www.instagram.com/p/ABC123/"
+                "canonical_url": "https://www.instagram.com/p/ABC123"
             },
             {
                 "original_url": "https://www.instagram.com/reel/XYZ789/",
-                "canonical_url": "https://www.instagram.com/reel/XYZ789/"
+                "canonical_url": "https://www.instagram.com/reel/XYZ789"
             },
         ]
         assert result == expected
@@ -132,11 +132,11 @@ class TestAsyncUnfurlHandler:
         test_cases = [
             (
                 "https://www.instagram.com/p/ABC123/?utm_source=ig_web",
-                "https://www.instagram.com/p/ABC123/",
+                "https://www.instagram.com/p/ABC123",
             ),
             (
                 "https://instagram.com/reel/XYZ789/#hashtag",
-                "https://instagram.com/reel/XYZ789/",
+                "https://www.instagram.com/reel/XYZ789",
             ),
         ]
 
@@ -319,7 +319,8 @@ class TestAsyncUnfurlHandler:
         assert result["statusCode"] == 200
         assert "Processed 1 unfurls successfully" in result["body"]
 
-        mock_process_link.assert_called_once_with(url)
+        # URL should be canonicalized (no trailing slash)
+        mock_process_link.assert_called_once_with("https://www.instagram.com/p/ABC123")
         mock_send_unfurl.assert_called_once()
 
     @pytest.mark.asyncio

@@ -12,9 +12,9 @@ To enable Instagram link unfurls in Slack, you need to configure your Slack app 
 ### 2. Configure Event Subscriptions
 1. Navigate to **Event Subscriptions** in the left sidebar
 2. Turn on **Enable Events**
-3. Set the **Request URL** to:
+3. Set the **Request URL** to your API Gateway endpoint (from CDK outputs), for example:
    ```
-   https://kn59lllvqb.execute-api.us-east-2.amazonaws.com/prod/slack/events
+   https://<your-api-id>.execute-api.<region>.amazonaws.com/prod/slack/events
    ```
 
 ### 3. Subscribe to Bot Events
@@ -48,9 +48,9 @@ If you added new scopes in step 5:
 After configuration:
 1. Share an Instagram link in a Slack channel
 2. You should see a rich preview with title, description, and view count
-3. If nothing appears, run the test script:
+3. If nothing appears, run the config checker:
    ```bash
-   python scripts/test-slack-events.py
+   uv run python scripts/check-slack-config.py
    ```
 
 ## Troubleshooting

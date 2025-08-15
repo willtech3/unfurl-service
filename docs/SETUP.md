@@ -18,26 +18,10 @@ This guide provides step-by-step instructions for setting up the Instagram Unfur
   - Secrets Manager
   - CloudFormation (for CDK)
 
-### 2. Instagram App Setup
+### 2. Instagram App Setup (Optional)
 
-1. Go to [Facebook Developers](https://developers.facebook.com)
-2. Create a new app or use an existing one
-3. Add Instagram Basic Display product:
-   - Go to Products → Add Product → Instagram Basic Display → Set Up
-4. Configure Instagram Basic Display:
-   - Add OAuth Redirect URIs (can be https://localhost for testing)
-   - Add Deauthorize Callback URL
-   - Add Data Deletion Request URL
-5. Create an Instagram Test User:
-   - Go to Roles → Test Users
-   - Create a test user and get an access token
-6. Generate Long-Lived Access Token:
-   ```bash
-   curl -X GET \
-     "https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret={app-secret}&access_token={short-lived-access-token}"
-   ```
-7. Submit for App Review (for production):
-   - Request `instagram_basic` permission
+This service does not require Instagram API credentials after removing the oEmbed fallback.
+You can skip this section unless you plan future API integrations.
 
 ### 3. Slack App Setup
 
@@ -115,15 +99,9 @@ aws secretsmanager create-secret \
     }'
 ```
 
-Store Instagram secrets:
+Store Instagram secrets: (Not required in current setup)
 ```bash
-aws secretsmanager create-secret \
-    --name unfurl-service/instagram \
-    --secret-string '{
-        "app_id": "your-instagram-app-id",
-        "app_secret": "your-instagram-app-secret",
-        "access_token": "your-long-lived-access-token"
-    }'
+# Skipped. No Instagram API secrets needed for current scraping strategy.
 ```
 
 ## Deployment

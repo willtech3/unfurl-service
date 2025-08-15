@@ -14,7 +14,6 @@ from aws_lambda_powertools import Logger
 from ..merge_utils import merge_instagram_results
 from .base import BaseScraper, ScrapingResult
 from .http_scraper import HttpScraper
-from .oembed_scraper import OEmbedScraper
 from .playwright_scraper import PlaywrightScraper
 
 logger = Logger()
@@ -55,11 +54,6 @@ class ScraperManager:
         http_scraper = HttpScraper(proxy_urls=proxy_urls)
         self.scrapers.append(http_scraper)
         self.logger.info("✅ HttpScraper initialized with enhanced headers")
-
-        # 3. oEmbed fallback
-        oembed_scraper = OEmbedScraper()
-        self.scrapers.append(oembed_scraper)
-        self.logger.info("✅ OEmbedScraper initialized")
 
         self.logger.info(
             f"ScraperManager initialized with {len(self.scrapers)} scrapers"
@@ -102,7 +96,7 @@ class ScraperManager:
         Scrape Instagram data using all scrapers and select the richest result.
 
         Strategy:
-        1. Execute all scrapers (Playwright, HTTP, oEmbed) concurrently/sequentially
+        1. Execute all scrapers (Playwright, HTTP) concurrently/sequentially
         2. Compare successful results using quality scoring algorithm
         3. Return the result with the highest quality score (richest content)
 
@@ -521,12 +515,10 @@ class ScraperManager:
 
         # Source reliability bonus (15 points max)
         source = result.method.lower() if result.method else ""
-        if "oembed" in source:
-            score += 15  # Official API
-        elif "playwright" in source:
-            score += 10  # Browser automation
+        if "playwright" in source:
+            score += 15  # Browser automation (most reliable)
         elif "http" in source:
-            score += 5  # Basic HTTP
+            score += 10  # Enhanced HTTP scraping
 
         # Emit detailed quality metrics
         content_type = "video" if quality_factors["has_video"] else "photo"

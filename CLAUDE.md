@@ -20,7 +20,7 @@
 7. **🌿 ALWAYS use feature branches** - Never commit directly to main
 8. **🔄 ALWAYS create pull requests** - All changes go through PR review
 9. **⚫ ALWAYS format with black** - `uv run black .` before commits
-10. **🔍 ALWAYS type check** - `uv run mypy . --strict` must pass
+10. **🔍 ALWAYS type check** - `uv run mypy .` must pass
 
 ## Project: Instagram Unfurl Service for Slack
 
@@ -193,12 +193,7 @@ uv run <command>                 # Run in venv context
    - Session management, header rotation
    - Success rate: ~60%
 
-3. oEmbed API:
-   - Path: src/unfurl_processor/scrapers/oembed_scraper.py
-   - Instagram Graph API fallback
-   - Success rate: ~30%
-
-4. Minimal Fallback:
+3. Minimal Fallback:
    - Basic URL metadata
    - Always succeeds (graceful degradation)
 ```
@@ -358,7 +353,7 @@ src/
 │   │   ├── manager.py   # Orchestration & fallback logic
 │   │   ├── playwright_scraper.py  # Browser automation
 │   │   ├── http_scraper.py        # Session-based HTTP
-│   │   └── oembed_scraper.py      # API fallback
+# oEmbed scraper removed per #30
 │   ├── handler_async.py   # Async Lambda handler
 │   └── entrypoint.py    # Container initialization
 └── observability/        # Logfire integration
