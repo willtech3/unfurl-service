@@ -28,9 +28,6 @@ orjson==3.10.12
 logfire[aws-lambda]==4.1.0
 opentelemetry-api==1.22.0
 
-# Compression support (optional, with fallback)
-# Use newer zstandard version that has better ARM64 wheel support
-
 # Performance and browser automation (optional but recommended)
 uvloop==0.19.0
 playwright==1.45.0
