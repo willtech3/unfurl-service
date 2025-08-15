@@ -12,7 +12,6 @@ from aws_cdk import (
     aws_secretsmanager as sm,
     aws_sqs as sqs,
     aws_ecr_assets as ecr_assets,
-    aws_iam as iam,
 )
 from constructs import Construct
 
@@ -201,14 +200,7 @@ class UnfurlServiceStack(Stack):
         deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
 
-        # Grant CloudWatch metrics permissions
-        unfurl_processor.add_to_role_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=["cloudwatch:PutMetricData"],
-                resources=["*"],
-            )
-        )
+        # CloudWatch custom metrics removed; no PutMetricData permission needed
 
         # Dead Letter Queue for failed Lambda invocations
         dlq = sqs.Queue(

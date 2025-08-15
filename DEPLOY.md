@@ -184,11 +184,9 @@ aws logs tail /aws/lambda/unfurl-processor-prod --follow
 
 ### Metrics
 
-The service publishes metrics to CloudWatch:
-- `InstagramDataFetched` - Successful scrapes
-- `InstagramFetchError` - Failed scrapes
-- `UnfurlSuccess` - Successful unfurls sent to Slack
-- `SlackAPIError` - Slack API failures
+Metrics are consolidated in Logfire. Custom CloudWatch metrics have been
+removed to reduce duplication and cost. See `docs/LOGFIRE.md` and the
+centralized instruments in `src/observability/metrics.py`.
 
 ## Security Considerations
 

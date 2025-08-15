@@ -7,7 +7,6 @@ slack-sdk==3.26.2
 # HTTP dependencies (wheel-compatible versions)
 requests==2.31.0
 httpx==0.26.0
-aiohttp==3.12.6
 
 # Scraping dependencies
 beautifulsoup4==4.12.3
@@ -16,7 +15,6 @@ soupsieve==2.4.0
 
 # Additional utilities (ARM64 wheel compatible)
 cachetools==5.5.0
-pydantic>=1.8.2,<2.0.0
 python-dateutil==2.8.2
 typing-extensions==4.7.0
 wrapt==1.16.0

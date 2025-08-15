@@ -166,8 +166,10 @@ Environment variables (set in CDK):
 Notes:
 
 - API Gateway execution tracing/logging disabled to reduce noisy CloudWatch log groups.
-- Lambda X-Ray disabled; Logfire is the source of truth for traces.
+- Lambda X-Ray disabled; Logfire is the source of truth for traces and metrics.
 - Standard Python logging is bridged to Logfire; CloudWatch still receives logs via Lambda stdout.
+- Custom CloudWatch metrics have been removed; metrics are emitted via Logfire instruments
+  defined in `src/observability/metrics.py`.
 
 ## 🔐 Security
 

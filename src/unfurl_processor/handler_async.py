@@ -190,14 +190,12 @@ class AsyncUnfurlHandler:
 
             fetch_time = time.time() - start_time
 
-            # Optional Logfire metrics
-            logfire.metric_histogram("instagram_fetch_time_ms", unit="ms").record(
-                int(fetch_time * 1000)
-            )
-            logfire.metric_counter("instagram_fetch_success").add(
-                1 if result.success else 0
-            )
-            logfire.metric_counter("scraping_method").add(1)
+            # Optional Logfire metrics via centralized instruments
+            from observability import metrics as m
+
+            m.instagram_fetch_time_ms.record(int(fetch_time * 1000))
+            m.instagram_fetch_success.add(1 if result.success else 0)
+            m.scraping_method.add(1)
 
             # Improved video detection logic
             has_video = False
@@ -262,22 +260,30 @@ class AsyncUnfurlHandler:
 
             if response["ok"]:
                 self.logger.info(f"Successfully sent unfurl to Slack channel {channel}")
-                logfire.metric_counter("slack_unfurl_success").add(1)
+                from observability import metrics as m
+
+                m.slack_unfurl_success.add(1)
                 return True
             else:
                 self.logger.error(
                     f"Slack unfurl failed: {response.get('error', 'Unknown error')}"
                 )
-                logfire.metric_counter("slack_unfurl_errors").add(1)
+                from observability import metrics as m
+
+                m.slack_unfurl_errors.add(1)
                 return False
 
         except SlackApiError as e:
             self.logger.error(f"Slack API error: {e.response['error']}")
-            logfire.metric_counter("slack_api_errors").add(1)
+            from observability import metrics as m
+
+            m.slack_api_errors.add(1)
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error sending unfurl: {str(e)}")
-            logfire.metric_counter("slack_unfurl_errors").add(1)
+            from observability import metrics as m
+
+            m.slack_unfurl_errors.add(1)
             return False
 
     def _canonicalize_instagram_url(self, url: str) -> str:
@@ -456,11 +462,11 @@ class AsyncUnfurlHandler:
 
                 processing_time = time.time() - start_time
 
-                logfire.metric_histogram("total_processing_time_ms", unit="ms").record(
-                    int(processing_time * 1000)
-                )
-                logfire.metric_counter("links_processed").add(len(instagram_links))
-                logfire.metric_counter("unfurls_generated").add(len(unfurls))
+                from observability import metrics as m
+
+                m.total_processing_time_ms.record(int(processing_time * 1000))
+                m.links_processed.add(len(instagram_links))
+                m.unfurls_generated.add(len(unfurls))
 
                 return {
                     "statusCode": 200,
@@ -482,7 +488,9 @@ class AsyncUnfurlHandler:
             self.logger.error(
                 f"Unexpected error in process_event: {str(e)}", exc_info=True
             )
-            logfire.metric_counter("processing_errors").add(1)
+            from observability import metrics as m
+
+            m.processing_errors.add(1)
 
             return {
                 "statusCode": 500,
