@@ -24,7 +24,7 @@ def extract_instagram_id(url: str) -> Optional[str]:
         # Validate it's an Instagram domain first
         if parsed.netloc not in ("instagram.com", "www.instagram.com", ""):
             return None
-            
+
         path_parts = [p for p in parsed.path.split("/") if p]
 
         if len(path_parts) >= 2 and path_parts[0] in ["p", "reel", "tv"]:
@@ -51,11 +51,11 @@ def canonicalize_instagram_url(url: str) -> str:
     """
     try:
         parsed = urlparse(url)
-        
+
         # If it doesn't have a scheme, return original (likely invalid)
         if not parsed.scheme:
             return url
-            
+
         # Ensure consistent netloc
         netloc = parsed.netloc if parsed.netloc else "www.instagram.com"
         if not netloc.startswith("www."):
