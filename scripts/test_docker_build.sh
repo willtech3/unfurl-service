@@ -42,7 +42,8 @@ fi
 required_files=(
     "Dockerfile"
     "requirements-docker.txt"
-    "src/unfurl_processor/handler_new.py"
+    "src/unfurl_processor/handler_async.py"
+    "src/unfurl_processor/entrypoint.py"
     "src/unfurl_processor/scrapers/manager.py"
 )
 
@@ -136,7 +137,7 @@ import sys
 sys.path.insert(0, '/var/task/src')
 
 try:
-    from unfurl_processor.handler_new import lambda_handler
+    from unfurl_processor.entrypoint import lambda_handler
     from unfurl_processor.scrapers.manager import ScraperManager
     from unfurl_processor.slack_formatter import SlackFormatter
     print('✅ All modules imported successfully')
@@ -172,7 +173,7 @@ echo -e "\n${GREEN}✅ Docker container is ready for deployment${NC}"
 echo -e "\n${YELLOW}💡 To test with sample data, run:${NC}"
 echo -e "   docker run --rm $IMAGE_NAME python -c \"
 import json
-from unfurl_processor.handler_new import lambda_handler
+from unfurl_processor.entrypoint import lambda_handler
 
 # Sample test event (replace with actual SNS event structure)
 test_event = {
@@ -182,6 +183,7 @@ test_event = {
             'Message': json.dumps({
                 'channel': 'C1234567890',
                 'message_ts': '1234567890.123456',
+                'unfurl_id': 'U1234567890',
                 'links': [{'url': 'https://instagram.com/p/test123/', 'domain': 'instagram.com'}]
             })
         }
