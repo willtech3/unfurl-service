@@ -183,6 +183,7 @@ test_event = {
             'Message': json.dumps({
                 'channel': 'C1234567890',
                 'message_ts': '1234567890.123456',
+                'unfurl_id': 'U1234567890',
                 'links': [{'url': 'https://instagram.com/p/test123/', 'domain': 'instagram.com'}]
             })
         }
