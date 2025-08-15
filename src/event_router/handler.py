@@ -14,6 +14,7 @@ from typing import Any, Dict, cast
 
 import boto3
 import logfire
+from observability import metrics as m
 from observability.logging import setup_logfire
 
 # Type imports for boto3
@@ -198,8 +199,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
 
                 # Example Logfire metric via centralized instruments
-                from observability import metrics as m
-
                 m.links_processed.add(len(instagram_links))
 
         return {"statusCode": 200, "body": json.dumps({"status": "ok"})}

@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, List, Tuple
 
 import logfire
+from observability import metrics as m
 from aws_lambda_powertools import Logger
 
 from ..merge_utils import merge_instagram_results
@@ -23,8 +24,7 @@ class ScraperManager:
     def __init__(self):
         self.logger = logger
 
-        # CloudWatch metrics removed; metrics consolidated in Logfire
-        self.metrics_enabled = False
+        # Metrics consolidated in Logfire; no CloudWatch custom metrics
 
         # Initialize proxy configuration
         proxy_urls = []
@@ -50,9 +50,7 @@ class ScraperManager:
             f"ScraperManager initialized with {len(self.scrapers)} scrapers"
         )
 
-    def _emit_metric(self, *_: Any, **__: Any) -> None:
-        """Deprecated: CloudWatch metric emission removed."""
-        return
+    # CloudWatch metric emission removed
 
     async def scrape_instagram_data(self, url: str) -> ScrapingResult:
         """
@@ -104,29 +102,23 @@ class ScraperManager:
                     # Tag data with scraper provenance for merging
                     result.data["__scraper_method"] = result.method
                     results.append(result)
-                    from observability import metrics as m
-
-                    m.scraper_success.add(1)
+                    m.scraper_success.add(1, attributes={"scraper": scraper.name})
                 else:
                     error_msg = f"{scraper.name} failed: {result.error}"
                     errors.append(error_msg)
                     self.logger.warning(f"❌ {error_msg}")
-                    from observability import metrics as m
-
-                    m.scraper_failure.add(1)
+                    m.scraper_failure.add(1, attributes={"scraper": scraper.name})
 
                 # Emit response time metric for each scraper
-                from observability import metrics as m
-
-                m.scraper_response_time_ms.record(int(result.response_time_ms))
+                m.scraper_response_time_ms.record(
+                    int(result.response_time_ms), attributes={"scraper": scraper.name}
+                )
 
             except Exception as e:
                 error_msg = f"{scraper.name} exception: {str(e)}"
                 errors.append(error_msg)
                 self.logger.error(f"💥 {error_msg}")
-                from observability import metrics as m
-
-                m.scraper_exception.add(1)
+                m.scraper_exception.add(1, attributes={"scraper": scraper.name})
 
         # Aggregate and select
         if results:
@@ -173,18 +165,14 @@ class ScraperManager:
                 total_time,
                 len(results),
             )
-            from observability import metrics as m
-
-            m.scraper_success.add(1)
-            m.scraper_response_time_ms.record(int(total_time))
+            m.scraper_success.add(1, attributes={"scraper": "aggregated"})
+            m.scraper_response_time_ms.record(int(total_time), attributes={"scraper": "aggregated"})
 
             return aggregated_result
         else:
             # All scrapers failed
             total_time = self.measure_time(start_time)
             self.logger.error(f"❌ All {len(self.scrapers)} scrapers failed for {url}")
-            from observability import metrics as m
-
             m.all_scrapers_failed.add(1)
 
             return ScrapingResult(
@@ -257,10 +245,8 @@ class ScraperManager:
             f"✅ Concurrent scraping completed: {successful}/{len(urls)} successful "
             f"in {total_time}ms"
         )
-        from observability import metrics as m
-
-        m.scraper_success.add(successful)
-        m.scraper_response_time_ms.record(int(total_time))
+        m.scraper_success.add(successful, attributes={"scraper": "concurrent"})
+        m.scraper_response_time_ms.record(int(total_time), attributes={"scraper": "concurrent"})
 
         return final_results
 
@@ -467,14 +453,7 @@ class ScraperManager:
         elif "http" in source:
             score += 10  # Enhanced HTTP scraping
 
-        # Emit detailed quality metrics
-        content_type = "video" if quality_factors["has_video"] else "photo"
-        # Content type recorded implicitly via logs; no explicit metric
-
-        # Emit quality factor metrics
-        for factor, has_factor in quality_factors.items():
-            if has_factor:
-                pass
+        # Content type and quality factors are logged; explicit metrics removed
 
         # Set has_video based on content analysis
         has_video = (
