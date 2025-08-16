@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 import boto3
 import httpx
 import logfire
+from observability import metrics as m
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
@@ -191,8 +192,6 @@ class AsyncUnfurlHandler:
             fetch_time = time.time() - start_time
 
             # Optional Logfire metrics via centralized instruments
-            from observability import metrics as m
-
             m.instagram_fetch_time_ms.record(int(fetch_time * 1000))
             m.instagram_fetch_success.add(1 if result.success else 0)
             m.scraping_method.add(1)
@@ -260,29 +259,21 @@ class AsyncUnfurlHandler:
 
             if response["ok"]:
                 self.logger.info(f"Successfully sent unfurl to Slack channel {channel}")
-                from observability import metrics as m
-
                 m.slack_unfurl_success.add(1)
                 return True
             else:
                 self.logger.error(
                     f"Slack unfurl failed: {response.get('error', 'Unknown error')}"
                 )
-                from observability import metrics as m
-
                 m.slack_unfurl_errors.add(1)
                 return False
 
         except SlackApiError as e:
             self.logger.error(f"Slack API error: {e.response['error']}")
-            from observability import metrics as m
-
             m.slack_api_errors.add(1)
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error sending unfurl: {str(e)}")
-            from observability import metrics as m
-
             m.slack_unfurl_errors.add(1)
             return False
 
@@ -462,8 +453,6 @@ class AsyncUnfurlHandler:
 
                 processing_time = time.time() - start_time
 
-                from observability import metrics as m
-
                 m.total_processing_time_ms.record(int(processing_time * 1000))
                 m.links_processed.add(len(instagram_links))
                 m.unfurls_generated.add(len(unfurls))
@@ -488,8 +477,6 @@ class AsyncUnfurlHandler:
             self.logger.error(
                 f"Unexpected error in process_event: {str(e)}", exc_info=True
             )
-            from observability import metrics as m
-
             m.processing_errors.add(1)
 
             return {
