@@ -166,7 +166,9 @@ class ScraperManager:
                 len(results),
             )
             m.scraper_success.add(1, attributes={"scraper": "aggregated"})
-            m.scraper_response_time_ms.record(int(total_time), attributes={"scraper": "aggregated"})
+            m.scraper_response_time_ms.record(
+                int(total_time), attributes={"scraper": "aggregated"}
+            )
 
             return aggregated_result
         else:
@@ -246,7 +248,9 @@ class ScraperManager:
             f"in {total_time}ms"
         )
         m.scraper_success.add(successful, attributes={"scraper": "concurrent"})
-        m.scraper_response_time_ms.record(int(total_time), attributes={"scraper": "concurrent"})
+        m.scraper_response_time_ms.record(
+            int(total_time), attributes={"scraper": "concurrent"}
+        )
 
         return final_results
 
