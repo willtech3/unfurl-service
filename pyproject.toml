@@ -19,9 +19,8 @@ dependencies = [
     "orjson>=3.10.12",
     "python-dotenv>=0.21.0",
     "cachetools>=5.5.0",
-    "pydantic>=2.4.0",
     "python-dateutil>=2.8.2",
-    "aiohttp>=3.12.6",
+    "aiohttp>=3.12.6",  # Required by slack-sdk AsyncWebClient
     "logfire[aws-lambda]==4.1.0",
     "opentelemetry-api>=1.22.0",
 ]
