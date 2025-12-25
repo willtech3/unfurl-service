@@ -1,4 +1,11 @@
+import os
+
 import pytest
+
+if os.getenv("RUN_CDK_TESTS", "false").lower() != "true":
+    pytest.skip("CDK tests require RUN_CDK_TESTS=true", allow_module_level=True)
+
+aws_cdk = pytest.importorskip("aws_cdk")
 from aws_cdk import App
 from aws_cdk.assertions import Match, Template
 
