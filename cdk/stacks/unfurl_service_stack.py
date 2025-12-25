@@ -12,6 +12,7 @@ from aws_cdk import (
     aws_secretsmanager as sm,
     aws_sqs as sqs,
     aws_ecr_assets as ecr_assets,
+    aws_s3 as s3,
 )
 from constructs import Construct
 
@@ -56,6 +57,27 @@ class UnfurlServiceStack(Stack):
             "UnfurlTopic",
             topic_name=f"unfurl-events-{env_name}",
             display_name="Instagram Unfurl Events",
+        )
+
+        # S3 Bucket for persistent assets
+        assets_bucket = s3.Bucket(
+            self,
+            "UnfurlAssets",
+            bucket_name=f"unfurl-assets-{env_name}",
+            public_read_access=True,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    expiration=Duration.days(30),
+                )
+            ],
         )
 
         # Secrets references
@@ -180,6 +202,7 @@ class UnfurlServiceStack(Stack):
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "DEDUPLICATION_TABLE_NAME": deduplication_table.table_name,
+                "ASSETS_BUCKET_NAME": assets_bucket.bucket_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "DEBUG",
@@ -199,6 +222,8 @@ class UnfurlServiceStack(Stack):
         cache_table.grant_read_write_data(unfurl_processor)
         deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
+        assets_bucket.grant_write(unfurl_processor)
+        assets_bucket.grant_read(unfurl_processor)
 
         # CloudWatch custom metrics removed; no PutMetricData permission needed
 

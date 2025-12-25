@@ -29,6 +29,7 @@ from slack_sdk.web.async_client import AsyncWebClient
 # Using AWS Lambda Powertools logger instead of src.logger
 from .scrapers.manager import ScraperManager
 from .slack_formatter import SlackFormatter
+from .asset_manager import AssetManager
 from .url_utils import (
     canonicalize_instagram_url,
     extract_instagram_id,
@@ -59,8 +60,18 @@ class AsyncUnfurlHandler:
         self.dynamodb = None
         self.http_client = None
         self.deduplication_table = None
+        self.asset_manager = None
 
         # Initialize on first use for better cold start performance
+
+    def _get_asset_manager(self) -> Optional[AssetManager]:
+        """Get or create AssetManager instance."""
+        if self.asset_manager is None:
+            if os.environ.get("ASSETS_BUCKET_NAME"):
+                self.asset_manager = AssetManager(self.http_client)
+            else:
+                return None
+        return self.asset_manager
 
     async def _get_scraper_manager(self) -> ScraperManager:
         """Get or create scraper manager instance."""
@@ -496,6 +507,21 @@ class AsyncUnfurlHandler:
 
             # Fetch fresh data
             instagram_data = await self._fetch_instagram_data(url)
+
+            if instagram_data:
+                # START NEW LOGIC
+                asset_manager = self._get_asset_manager()
+                post_id = self._extract_instagram_id(url)
+
+                # Check for image_url
+                target_url = instagram_data.get("image_url")
+
+                if asset_manager and target_url and post_id:
+                    s3_url = await asset_manager.upload_image(target_url, post_id)
+                    if s3_url:
+                        instagram_data["image_url"] = s3_url
+                        logger.info(f"Persisted asset for {post_id} to {s3_url}")
+                # END NEW LOGIC
 
             # Format for Slack
             unfurl_data = self._format_unfurl_data(instagram_data)
