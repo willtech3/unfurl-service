@@ -13,15 +13,15 @@ This specification details the work required to implement S3-based asset persist
 
 ### 1. Update Stack Implementation
 
-- [ ] **Import S3 Module**
-    - [ ] Ensure `aws_s3 as s3` is imported.
+- [x] **Import S3 Module**
+    - [x] Ensure `aws_s3 as s3` is imported.
 
-- [ ] **Create Public Assets Bucket**
-    - [ ] Define a new `s3.Bucket` construct named `UnfurlAssets`.
-    - [ ] **Critical Configuration**:
-        - [ ] `bucket_name`: `f"unfurl-assets-{env_name}"`
-        - [ ] `public_read_access`: `True` (This automatically adds the `s3:GetObject` bucket policy).
-        - [ ] `block_public_access`: **MUST** explicit disable all blocks to allow public reads:
+- [x] **Create Public Assets Bucket**
+    - [x] Define a new `s3.Bucket` construct named `UnfurlAssets`.
+    - [x] **Critical Configuration**:
+        - [x] `bucket_name`: `f"unfurl-assets-{env_name}"`
+        - [x] `public_read_access`: `True` (This automatically adds the `s3:GetObject` bucket policy).
+        - [x] `block_public_access`: **MUST** explicit disable all blocks to allow public reads:
             ```python
             block_public_access=s3.BlockPublicAccess(
                 block_public_acls=False,
@@ -30,18 +30,18 @@ This specification details the work required to implement S3-based asset persist
                 restrict_public_buckets=False
             )
             ```
-        - [ ] `removal_policy`: `RemovalPolicy.DESTROY` (for clean teardown).
-        - [ ] `auto_delete_objects`: `True`.
-        - [ ] `lifecycle_rules`: Add rule to expire objects after **30 days** (cost management).
-        - [ ] `cors`: **Not Required** (Slack fetches images server-side; browser CORS not needed).
+        - [x] `removal_policy`: `RemovalPolicy.DESTROY` (for clean teardown).
+        - [x] `auto_delete_objects`: `True`.
+        - [x] `lifecycle_rules`: Add rule to expire objects after **30 days** (cost management).
+        - [x] `cors`: **Not Required** (Slack fetches images server-side; browser CORS not needed).
 
-- [ ] **Grant Permissions**
-    - [ ] `assets_bucket.grant_write(unfurl_processor)`
-    - [ ] `assets_bucket.grant_read(unfurl_processor)`
+- [x] **Grant Permissions**
+    - [x] `assets_bucket.grant_write(unfurl_processor)`
+    - [x] `assets_bucket.grant_read(unfurl_processor)`
 
-- [ ] **Update Lambda Environment**
-    - [ ] Add `ASSETS_BUCKET_NAME` = `assets_bucket.bucket_name`.
-    - [ ] **Verify**: `AWS_REGION` is available in Lambda env (standard default).
+- [x] **Update Lambda Environment**
+    - [x] Add `ASSETS_BUCKET_NAME` = `assets_bucket.bucket_name`.
+    - [x] **Verify**: `AWS_REGION` is available in Lambda env (standard default).
 
 ---
 
@@ -49,17 +49,17 @@ This specification details the work required to implement S3-based asset persist
 
 ### 1. New Utility Module (`src/unfurl_processor/asset_manager.py`)
 
-- [ ] **Create `AssetManager` Class**
-    - [ ] **Imports**: `asyncio`, `hashlib`, `os`, `boto3`, `httpx`, `botocore.exceptions`.
-    - [ ] **Constructor**:
+- [x] **Create `AssetManager` Class**
+    - [x] **Imports**: `asyncio`, `hashlib`, `os`, `boto3`, `httpx`, `botocore.exceptions`.
+    - [x] **Constructor**:
         - Initialize `self.s3_client` (sync `boto3.client("s3")`).
         - Read `self.bucket_name` from env `ASSETS_BUCKET_NAME`.
         - Read `self.region` from env `AWS_REGION` (default to `us-east-1` if missing).
         - Initialize `self.http_client` (or pass shared instance).
 
-- [ ] **Implement `_generate_key` Helper**
-    - [ ] **Signature**: `def _generate_key(self, post_id: str, url: str, content_type: str) -> str`
-    - [ ] **Logic**:
+- [x] **Implement `_generate_key` Helper**
+    - [x] **Signature**: `def _generate_key(self, post_id: str, url: str, content_type: str) -> str`
+    - [x] **Logic**:
         1. Hash the source URL: `url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]`.
         2. Map Content-Type to extension:
            - `image/jpeg` -> `.jpg`
@@ -68,9 +68,9 @@ This specification details the work required to implement S3-based asset persist
            - Default -> `.jpg`
         3. Return `f"instagram/{post_id}/{url_hash}.{ext}"`.
 
-- [ ] **Implement `upload_image` Method**
-    - [ ] **Signature**: `async def upload_image(self, url: str, post_id: str) -> Optional[str]`
-    - [ ] **Logic**:
+- [x] **Implement `upload_image` Method**
+    - [x] **Signature**: `async def upload_image(self, url: str, post_id: str) -> Optional[str]`
+    - [x] **Logic**:
         1. **Download**: `await self.http_client.get(url)`.
            - Timeout: 5 seconds.
            - Check status: `response.raise_for_status()`.
@@ -87,7 +87,7 @@ This specification details the work required to implement S3-based asset persist
              - **Do NOT set ACL** (Legacy ACLs are disabled).
         5. **Return URL**: `f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"`.
 
-    - [ ] **Error Handling**:
+    - [x] **Error Handling**:
         - Catch `httpx.HTTPError`: Log warning, return `None`.
         - Catch `botocore.exceptions.ClientError`: Log warning (include status code), return `None`.
         - Catch generic `Exception`: Log error, return `None`.
@@ -96,34 +96,34 @@ This specification details the work required to implement S3-based asset persist
 
 ### 2. Update Handler (`src/unfurl_processor/handler_async.py`)
 
-- [ ] **Initialize AssetManager**
-    - [ ] Import `AssetManager`.
-    - [ ] In `__init__`: `self.asset_manager = None` (lazy init).
-    - [ ] Add `_get_asset_manager()` helper (singleton pattern).
+- [x] **Initialize AssetManager**
+    - [x] Import `AssetManager`.
+    - [x] In `__init__`: `self.asset_manager = None` (lazy init).
+    - [x] Add `_get_asset_manager()` helper (singleton pattern).
           - Check if `os.environ.get("ASSETS_BUCKET_NAME")` exists. If not, return `None` (graceful degradation).
 
-- [ ] **Integrate into `_process_single_link`**
-    - [ ] **Location**: **Before** calling `_format_unfurl_data` (so Slack gets the persistent URL).
-    - [ ] **Logic**:
+- [x] **Integrate into `_process_single_link`**
+    - [x] **Location**: **Before** calling `_format_unfurl_data` (so Slack gets the persistent URL).
+    - [x] **Logic**:
         ```python
         # Existing fetch logic...
         instagram_data = await self._fetch_instagram_data(url)
-        
+
         if instagram_data:
             # START NEW LOGIC
             asset_manager = self._get_asset_manager()
             post_id = self._extract_instagram_id(url)
-            
+
             # Check for image_url OR video poster
             target_url = instagram_data.get("image_url")
-            
+
             if asset_manager and target_url and post_id:
                 s3_url = await asset_manager.upload_image(target_url, post_id)
                 if s3_url:
                     instagram_data["image_url"] = s3_url
                     logger.info(f"Persisted asset for {post_id} to {s3_url}")
             # END NEW LOGIC
-        
+
         unfurl_data = self._format_unfurl_data(instagram_data)
         ```
 
@@ -132,8 +132,8 @@ This specification details the work required to implement S3-based asset persist
 ## ✅ Verification & Testing
 
 ### 1. Unit Tests (`tests/unit/test_asset_manager.py`)
-- [ ] **Dependencies**: Use `pytest-mock` and `pytest-asyncio`.
-- [ ] **Test Cases**:
+- [x] **Dependencies**: Use `pytest-mock` and `pytest-asyncio`.
+- [x] **Test Cases**:
     1. `test_key_generation`: Verify unique hash from URL and extension mapping.
     2. `test_upload_success`: Mock `httpx.get` (200 OK) and `s3_client.put_object`. Verify returned URL format.
     3. `test_download_failure`: Mock `httpx.get` (404/500). Verify `None` return.

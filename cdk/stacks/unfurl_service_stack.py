@@ -5,6 +5,7 @@ from aws_cdk import (
     BundlingOptions,
     aws_lambda as lambda_,
     aws_dynamodb as dynamodb,
+    aws_s3 as s3,
     aws_sns as sns,
     aws_sns_subscriptions as sns_subs,
     aws_apigateway as apigw,
@@ -48,6 +49,32 @@ class UnfurlServiceStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
+        )
+
+        # S3 bucket for persistent Instagram assets (fixes disappearing images)
+        assets_bucket = s3.Bucket(
+            self,
+            "UnfurlAssets",
+            bucket_name=f"unfurl-assets-{env_name}",
+            # Enable public read access via bucket policy
+            public_read_access=True,
+            # Must explicitly disable all blocks to allow public reads
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            # Lifecycle rule: expire objects after 30 days for cost management
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    expiration=Duration.days(30),
+                    enabled=True,
+                )
+            ],
+            # CORS not required - Slack fetches images server-side
         )
 
         # SNS topic for async processing
@@ -181,6 +208,7 @@ class UnfurlServiceStack(Stack):
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "DEDUPLICATION_TABLE_NAME": deduplication_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
+                "ASSETS_BUCKET_NAME": assets_bucket.bucket_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "DEBUG",
                 "LOGFIRE_SERVICE_NAME": "unfurl-processor",
@@ -199,6 +227,8 @@ class UnfurlServiceStack(Stack):
         cache_table.grant_read_write_data(unfurl_processor)
         deduplication_table.grant_read_write_data(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
+        assets_bucket.grant_write(unfurl_processor)
+        assets_bucket.grant_read(unfurl_processor)
 
         # CloudWatch custom metrics removed; no PutMetricData permission needed
 

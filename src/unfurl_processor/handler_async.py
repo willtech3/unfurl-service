@@ -19,14 +19,16 @@ from typing import Any, Dict, List, Optional
 import boto3
 import httpx
 import logfire
-from observability import metrics as m
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 
+from observability import metrics as m
+
 # Using AWS Lambda Powertools logger instead of src.logger
+from .asset_manager import AssetManager
 from .scrapers.manager import ScraperManager
 from .slack_formatter import SlackFormatter
 from .url_utils import (
@@ -59,6 +61,7 @@ class AsyncUnfurlHandler:
         self.dynamodb = None
         self.http_client = None
         self.deduplication_table = None
+        self.asset_manager = None
 
         # Initialize on first use for better cold start performance
 
@@ -105,6 +108,21 @@ class AsyncUnfurlHandler:
                 http2=True,
             )
         return self.http_client
+
+    def _get_asset_manager(self) -> Optional[AssetManager]:
+        """Get or create asset manager instance for S3 persistence.
+
+        Returns None if ASSETS_BUCKET_NAME is not configured (graceful degradation).
+        """
+        if self.asset_manager is None:
+            bucket_name = os.environ.get("ASSETS_BUCKET_NAME")
+            if not bucket_name:
+                self.logger.debug(
+                    "ASSETS_BUCKET_NAME not configured, asset persistence disabled"
+                )
+                return None
+            self.asset_manager = AssetManager()
+        return self.asset_manager
 
     async def _get_secret(self, secret_name: str) -> Dict[str, Any]:
         """Get secrets from Secrets Manager with caching."""
@@ -496,6 +514,20 @@ class AsyncUnfurlHandler:
 
             # Fetch fresh data
             instagram_data = await self._fetch_instagram_data(url)
+
+            # Persist image to S3 if available (before formatting)
+            if instagram_data:
+                asset_manager = self._get_asset_manager()
+                post_id = self._extract_instagram_id(url)
+
+                # Check for image_url to persist
+                target_url = instagram_data.get("image_url")
+
+                if asset_manager and target_url and post_id:
+                    s3_url = await asset_manager.upload_image(target_url, post_id)
+                    if s3_url:
+                        instagram_data["image_url"] = s3_url
+                        self.logger.info(f"Persisted asset for {post_id} to {s3_url}")
 
             # Format for Slack
             unfurl_data = self._format_unfurl_data(instagram_data)
