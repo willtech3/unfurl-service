@@ -14,12 +14,13 @@ from typing import Any, Dict, cast
 
 import boto3
 import logfire
-from observability import metrics as m
-from observability.logging import setup_logfire
 
 # Type imports for boto3
 from botocore.client import BaseClient
 from opentelemetry.propagate import inject
+
+from observability import metrics as m
+from observability.logging import setup_logfire
 
 # Configure Logfire and bridge stdlib logging (with console output)
 setup_logfire(enable_console_output=True)

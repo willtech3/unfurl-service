@@ -19,12 +19,13 @@ from typing import Any, Dict, List, Optional
 import boto3
 import httpx
 import logfire
-from observability import metrics as m
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
+
+from observability import metrics as m
 
 # Using AWS Lambda Powertools logger instead of src.logger
 from .scrapers.manager import ScraperManager

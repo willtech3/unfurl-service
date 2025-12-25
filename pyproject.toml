@@ -136,3 +136,8 @@ skip_covered = true
 [tool.bandit]
 targets = ["src"]
 skip = ["B101", "B110", "B601"]
+
+[dependency-groups]
+dev = [
+    "pytest-mock>=3.15.1",
+]
