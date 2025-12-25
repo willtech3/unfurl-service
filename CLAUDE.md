@@ -1,4 +1,6 @@
-# Claude Development Guidelines for Unfurl Service - Core Document
+# Claude Development Guidelines for Unfurl Service
+
+**Primary Reference for Mechanical Rules**: See `AGENTS.md` for formatting, linting, testing, and UV commands.
 
 ## 🧠 Context Management
 
@@ -11,16 +13,13 @@
 
 ## 🚨 CRITICAL RULES - NEVER VIOLATE
 
-1. **🔐 NEVER commit secrets** - Use AWS Secrets Manager for all credentials
-2. **📁 NEVER use `git add .`** - Always specify files explicitly
-3. **🐍 ALWAYS activate venv first** - `source .venv/bin/activate`
-4. **🧪 ALWAYS run tests before committing** - `uv run pytest`
-5. **📝 ALWAYS explain changes** - What/Why/How/Impact/Testing format
-6. **🚀 ALWAYS use GitHub Actions for deployment** - Never deploy manually
-7. **🌿 ALWAYS use feature branches** - Never commit directly to main
-8. **🔄 ALWAYS create pull requests** - All changes go through PR review
-9. **⚫ ALWAYS format with black** - `uv run black .` before commits
-10. **🔍 ALWAYS type check** - `uv run mypy .` must pass
+1.  **🔐 NEVER commit secrets** - Use AWS Secrets Manager for all credentials
+2.  **📁 NEVER use `git add .`** - Always specify files explicitly
+3.  **🧪 ALWAYS run tests before committing** - `uv run pytest`
+4.  **📝 ALWAYS explain changes** - What/Why/How/Impact/Testing format
+5.  **🚀 ALWAYS use GitHub Actions for deployment** - Never deploy manually
+6.  **🌿 ALWAYS use feature branches** - Never commit directly to main
+7.  **🔄 ALWAYS create pull requests** - All changes go through PR review
 
 ## Project: Instagram Unfurl Service for Slack
 
@@ -36,18 +35,6 @@ Flow: API Gateway → SNS → Lambda processors
 Storage: DynamoDB (caching) + S3 (static assets)
 Observability: Logfire (logs/traces/metrics) + CloudWatch
 Deployment: AWS CDK + GitHub Actions CI/CD
-```
-
-### Tech Stack
-
-```yaml
-Language: Python 3.12.3
-Package Manager: UV (ultra-fast, replaces pip/venv)
-Infrastructure: AWS CDK (TypeScript/Python)
-Container: Docker with multi-stage builds
-Browser Automation: Playwright (headless Chromium)
-Testing: pytest with 80%+ coverage requirement
-Code Quality: black + flake8 + mypy (strict mode)
 ```
 
 ## 🏗️ Architecture Constraints (IMMUTABLE)
@@ -69,68 +56,6 @@ Scrapers ← Handler ← Infrastructure ← CDK
 (Core)     (Async)   (AWS/Slack)     (Deploy)
 ```
 
-### Quick Validation
-
-```bash
-pwd                    # Should be in project root
-which python           # Should show .venv/bin/python
-echo $VIRTUAL_ENV      # Should show .venv path
-git branch             # Should NOT be on main
-docker --version       # Should have Docker running
-```
-
-## 🔄 Common Workflows
-
-### Starting ANY Work
-
-```bash
-cd unfurl-service
-source .venv/bin/activate
-uv pip install -e .
-git pull origin main
-git checkout -b feature/your-feature  # NEVER work on main
-```
-
-### Before ANY Commit
-
-```bash
-# Explain what you're about to commit
-echo "Changes: [describe what you're committing]"
-
-# Run quality checks
-uv run black .
-uv run flake8 .
-uv run mypy . --strict
-uv run pytest
-
-# Add specific files only
-git add src/specific/file.py tests/specific/test_file.py
-
-# Commit with conventional message
-git commit -m "type(scope): description"
-```
-
-### Creating a Pull Request
-
-```bash
-# Push feature branch
-git push origin feature/your-feature
-
-# Create PR (never merge locally)
-gh pr create --title "type: description" --body "Details of changes"
-
-# Let GitHub Actions handle deployment - NEVER deploy manually
-```
-
-### Quick Quality Check
-
-```bash
-uv run black . && \
-uv run flake8 . && \
-uv run mypy . --strict && \
-uv run pytest --cov=src
-```
-
 ## 🎯 Current Focus Tracking
 
 When working on a feature, maintain context:
@@ -146,41 +71,13 @@ When working on a feature, maintain context:
 
 Before implementing ANYTHING:
 
-- [ ] Is virtual environment active?
 - [ ] Am I on a feature branch (not main)?
-- [ ] Have I pulled latest changes?
 - [ ] Do I understand the scraping strategy?
 - [ ] Have I checked existing tests?
 - [ ] Have I explained what I'm about to do?
 - [ ] Is Docker running (for container tests)?
 
-## Development Standards
-
-### Code Quality Requirements
-
-Before ANY commit, ALL must pass:
-
-1. **Format**: `uv run black .`
-2. **Lint**: `uv run flake8 .`
-3. **Type Check**: `uv run mypy . --strict`
-4. **Test**: `uv run pytest --cov=src`
-5. **Explanation**: Document What/Why/How/Impact/Testing
-
-### UV Package Management
-
-```bash
-# Virtual environment
-uv venv                          # Create venv
-source .venv/bin/activate        # Activate (Linux/Mac)
-
-# Dependencies
-uv pip install -e .              # Install project editable
-uv pip install -r requirements-docker.txt  # Container deps
-uv add package_name              # Add new package
-uv run <command>                 # Run in venv context
-```
-
-### Scraping Strategy (Priority Order)
+## 📦 Scraping Strategy (Priority Order)
 
 ```yaml
 1. Playwright Browser:
@@ -196,151 +93,6 @@ uv run <command>                 # Run in venv context
 3. Minimal Fallback:
    - Basic URL metadata
    - Always succeeds (graceful degradation)
-```
-
-## Key Files & Patterns
-
-### Lambda Handlers
-
-```yaml
-Event Router (ZIP):
-  - src/event_router/handler.py
-  - Receives Slack events, publishes to SNS
-  - Lightweight, fast response
-
-Unfurl Processor (Container):
-  - src/unfurl_processor/handler_async.py
-  - Async processing with scrapers (AsyncUnfurlHandler)
-  - src/unfurl_processor/entrypoint.py (container entry point)
-```
-
-### Infrastructure
-
-```yaml
-CDK Stack: cdk/stacks/unfurl_service_stack.py
-Configuration: cdk.json
-Docker: Dockerfile (multi-stage, Playwright deps)
-```
-
-### Testing
-
-```yaml
-Test Files: tests/test_*.py
-Coverage: Minimum 80% required
-Run: uv run pytest -v --cov=src
-```
-
-## Deployment
-
-### GitHub Actions (Automatic)
-
-```bash
-# Push to main triggers deployment
-git add . && git commit -m "feat: description" && git push
-```
-
-### Manual CDK Deployment
-
-```bash
-# Deploy all stacks
-cdk deploy --all
-
-# Deploy specific stack
-cdk deploy UnfurlServiceStack
-```
-
-### Local Testing
-
-```bash
-# Validate environment
-./scripts/validate_environment.py
-
-# Test Docker build
-./scripts/test_docker_build.sh
-
-# Run tests with coverage
-uv run pytest --cov=src --cov-report=html
-```
-
-## Environment Variables
-
-```yaml
-Required:
-  SLACK_BOT_TOKEN: Bot user OAuth token (from Secrets Manager)
-  SLACK_APP_TOKEN: App-level token (if using socket mode)
-  DYNAMODB_TABLE_NAME: Cache table name
-  SNS_TOPIC_ARN: Topic for async processing
-
-Optional:
-  LOG_LEVEL: INFO|DEBUG|WARNING|ERROR (default: INFO)
-  LOGFIRE_TOKEN: Observability token
-  LOGFIRE_SERVICE_NAME: Service identifier
-  PLAYWRIGHT_TIMEOUT: Browser timeout in ms (default: 30000)
-```
-
-## Current Branch & Recent Work
-
-```yaml
-Branch: chore/issue-28-remove-legacy-handler-and-compression-deps
-Recent:
-  - "#28: Removed legacy sync handler and compression dependencies"
-  - "#27: Fixed Logfire logging handler integration"
-  - "#26: Bundled observability module for event router"
-Status: Clean working tree, ready for new features
-```
-
-## Common Commands
-
-### Development
-
-```bash
-# Setup
-uv venv && source .venv/bin/activate
-uv pip install -e .
-python -m playwright install chromium
-
-# Quality checks
-uv run black .
-uv run flake8 .
-uv run mypy . --strict
-uv run pytest
-
-# Local testing
-./scripts/test_docker_build.sh
-uv run python -m unfurl_processor.entrypoint  # Test handler
-```
-
-### Debugging
-
-```bash
-# Check Slack configuration
-uv run python scripts/check-slack-config.py
-
-# Validate environment
-./scripts/validate_environment.py
-
-# View CloudWatch logs
-aws logs tail /aws/lambda/unfurl-processor --follow
-```
-
-## Performance Targets
-
-```yaml
-Cold Start: 3-5 seconds (container init + Playwright)
-Warm Start: 100-500ms (cached browser instance)
-Success Rate: 95%+ (with all fallback strategies)
-Memory: 512-1024MB typical usage
-Timeout: 30 seconds max execution
-```
-
-## Security Notes
-
-```yaml
-- Never commit secrets (use AWS Secrets Manager)
-- Respect rate limits (Instagram: ~200 req/hour)
-- User agent rotation for bot evasion
-- IAM roles with least privilege
-- Container runs as non-root user
 ```
 
 ## 🔍 Architecture Quick Reference
@@ -359,27 +111,6 @@ src/
 └── observability/        # Logfire integration
 ```
 
-**Red Flags:**
-
-- Hardcoded credentials anywhere
-- Direct `os.environ` access outside config
-- Synchronous code in async handlers
-- Missing error handling in scrapers
-- Working directly on main branch
-- Manual CDK deployments when CI exists
-- Tests that don't test actual behavior
-
-## 🆘 When Stuck
-
-1. Check: Am I on a feature branch?
-2. Check: Is venv active?
-3. Check: Is Docker running?
-4. Check: Did I run quality checks?
-5. Check: Are my changes explained?
-6. Check: Do tests cover my changes?
-
-If still stuck: Review logs in CloudWatch/Logfire
-
 ## 📝 Memory Aid
 
 **U.N.F.U.R.L.**
@@ -395,21 +126,11 @@ If still stuck: Review logs in CloudWatch/Logfire
 
 Every modification MUST include:
 
-1. **What**: Exact changes made
-2. **Why**: Business/technical reasoning
-3. **How**: Implementation approach
-4. **Impact**: Performance/security/UX effects
-5. **Testing**: Validation performed
-
-## Quick Reference
-
-```yaml
-Scraper Manager: src/unfurl_processor/scrapers/manager.py:ScraperManager
-Slack Formatter: src/unfurl_processor/slack_formatter.py:format_unfurl()
-Container Handler: src/unfurl_processor/entrypoint.py:lambda_handler()
-Event Router: src/event_router/handler.py:lambda_handler()
-CDK Stack: cdk/stacks/unfurl_service_stack.py:UnfurlServiceStack
-```
+1.  **What**: Exact changes made
+2.  **Why**: Business/technical reasoning
+3.  **How**: Implementation approach
+4.  **Impact**: Performance/security/UX effects
+5.  **Testing**: Validation performed
 
 ---
 
