@@ -86,6 +86,40 @@ class TestAsyncUnfurlHandler:
         formatter2 = handler._get_slack_formatter()
         assert formatter1 is formatter2
 
+    def test_create_http_client_disables_http2_when_h2_missing(self, handler):
+        """HTTP/2 should disable when optional 'h2' is absent."""
+        with (
+            patch(
+                "src.unfurl_processor.handler_async.importlib.util.find_spec",
+                return_value=None,
+            ),
+            patch(
+                "src.unfurl_processor.handler_async.httpx.AsyncClient"
+            ) as mock_client,
+            patch.object(handler.logger, "warning") as mock_warning,
+        ):
+            handler._create_http_client()
+
+        assert mock_client.call_args.kwargs["http2"] is False
+        mock_warning.assert_called_once()
+
+    def test_create_http_client_enables_http2_when_h2_present(self, handler):
+        """HTTP/2 should enable when optional 'h2' is present."""
+        with (
+            patch(
+                "src.unfurl_processor.handler_async.importlib.util.find_spec",
+                return_value=object(),
+            ),
+            patch(
+                "src.unfurl_processor.handler_async.httpx.AsyncClient"
+            ) as mock_client,
+            patch.object(handler.logger, "warning") as mock_warning,
+        ):
+            handler._create_http_client()
+
+        assert mock_client.call_args.kwargs["http2"] is True
+        mock_warning.assert_not_called()
+
     def test_extract_instagram_id(self, handler):
         """Test Instagram ID extraction from URLs."""
         test_cases = [

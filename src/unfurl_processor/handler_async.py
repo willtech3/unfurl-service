@@ -10,6 +10,7 @@ Optimized for Docker-based Lambda with:
 """
 
 import asyncio
+import importlib.util
 import json
 import os
 import time
@@ -100,10 +101,15 @@ class AsyncUnfurlHandler:
         return self.dynamodb
 
     def _create_http_client(self) -> httpx.AsyncClient:
+        http2_enabled = importlib.util.find_spec("h2") is not None
+        if not http2_enabled:
+            self.logger.warning(
+                "HTTP/2 disabled for httpx client because 'h2' is not installed"
+            )
         return httpx.AsyncClient(
             timeout=30.0,
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-            http2=True,
+            http2=http2_enabled,
         )
 
     async def _get_http_client(self) -> httpx.AsyncClient:
