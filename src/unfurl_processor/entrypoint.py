@@ -24,10 +24,9 @@ except ImportError:
 import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from opentelemetry import context as otel_context
-from opentelemetry.propagate import extract
 
 from observability.logging import setup_logfire
+from observability.trace_context import extract_context_from_sns_event
 
 from .handler_async import AsyncUnfurlHandler
 
@@ -65,27 +64,8 @@ async def async_lambda_handler(
     Returns:
         Response dictionary
     """
-
-    # Extract W3C trace context from SNS message attributes if present
-    def _extract_sns_carrier(evt: Dict[str, Any]) -> Dict[str, str]:
-        try:
-            attrs = evt["Records"][0]["Sns"].get("MessageAttributes", {})
-            return {k: v.get("Value") or v.get("StringValue") for k, v in attrs.items()}
-        except Exception:
-            return {}
-
-    carrier = _extract_sns_carrier(event)
-    token = None
-    if carrier:
-        ctx = extract(carrier)
-        token = otel_context.attach(ctx)
-
-    try:
-        handler = get_handler()
-        return await handler.process_event(event, context)
-    finally:
-        if token is not None:
-            otel_context.detach(token)
+    handler = get_handler()
+    return await handler.process_event(event, context)
 
 
 def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
@@ -117,7 +97,9 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
 
 
 # Wrap handler with Logfire's AWS Lambda instrumentation (in-place)
-logfire.instrument_aws_lambda(lambda_handler)
+logfire.instrument_aws_lambda(
+    lambda_handler, event_context_extractor=extract_context_from_sns_event
+)
 
 
 # No metrics decorator; metrics are handled by Logfire directly
