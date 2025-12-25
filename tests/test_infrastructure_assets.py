@@ -2,14 +2,17 @@ import os
 
 import pytest
 
-if os.getenv("RUN_CDK_TESTS", "false").lower() != "true":
-    pytest.skip("CDK tests require RUN_CDK_TESTS=true", allow_module_level=True)
-
 aws_cdk = pytest.importorskip("aws_cdk")
 from aws_cdk import App
 from aws_cdk.assertions import Match, Template
 
 from cdk.stacks.unfurl_service_stack import UnfurlServiceStack
+
+RUN_CDK_TESTS = os.getenv("RUN_CDK_TESTS", "false").lower() == "true"
+
+pytestmark = pytest.mark.skipif(
+    not RUN_CDK_TESTS, reason="CDK tests require RUN_CDK_TESTS=true"
+)
 
 
 @pytest.fixture(scope="module")
