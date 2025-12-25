@@ -22,11 +22,12 @@ except ImportError:
     pass
 
 import logfire
-from observability.logging import setup_logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from opentelemetry import context as otel_context
 from opentelemetry.propagate import extract
+
+from observability.logging import setup_logfire
 
 from .handler_async import AsyncUnfurlHandler
 
