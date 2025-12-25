@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class AssetManager:
     def __init__(self, http_client: Optional[httpx.AsyncClient] = None):
         self.bucket_name = os.environ.get("ASSETS_BUCKET_NAME")
@@ -19,11 +20,7 @@ class AssetManager:
     def _generate_key(self, post_id: str, url: str, content_type: str) -> str:
         url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]
 
-        ext_map = {
-            "image/jpeg": ".jpg",
-            "image/png": ".png",
-            "image/webp": ".webp"
-        }
+        ext_map = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
         ext = ext_map.get(content_type, ".jpg")
 
         return f"instagram/{post_id}/{url_hash}{ext}"
@@ -47,7 +44,7 @@ class AssetManager:
                 Key=key,
                 Body=response.content,
                 ContentType=content_type,
-                CacheControl="max-age=31536000"
+                CacheControl="max-age=31536000",
             )
 
             return f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"
