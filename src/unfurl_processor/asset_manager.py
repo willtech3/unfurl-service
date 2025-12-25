@@ -1,14 +1,14 @@
 import asyncio
 import hashlib
-import logging
 import os
 from typing import Optional
 
 import boto3
 import httpx
+from aws_lambda_powertools import Logger
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger(__name__)
+logger = Logger()
 
 CONTENT_TYPE_EXTENSIONS = {
     "image/jpeg": "jpg",
@@ -30,6 +30,9 @@ class AssetManager:
         return f"instagram/{post_id}/{url_hash}.{ext}"
 
     async def upload_image(self, url: str, post_id: str) -> Optional[str]:
+        if not self.bucket_name:
+            return None
+
         try:
             response = await self.http_client.get(url, timeout=5.0)
             response.raise_for_status()
