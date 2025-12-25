@@ -10,6 +10,22 @@ This document serves as the primary source of truth for all AI Agents (Claude, C
 4.  **Type Checker**: Mypy (Strict).
 5.  **Test Runner**: Pytest.
 
+## 🤖 AI Agent Bootstrap (Jules, Codex, etc.)
+
+For sandboxed cloud environments, run the lightweight bootstrap script:
+
+```bash
+bash scripts/agent-setup.sh
+```
+
+This script is optimized for ephemeral Linux VMs and will:
+- Auto-detect UV or fallback to pip
+- Create and activate a virtual environment
+- Install all dependencies including dev tools
+- Install Playwright Chromium for scraping tests
+
+> **Note**: For local development with pyenv version management, use `scripts/setup_environment.sh` instead.
+
 ## 🛠 Project Environment
 
 -   **Language**: Python 3.12.3
