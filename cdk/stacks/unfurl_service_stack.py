@@ -221,7 +221,9 @@ class UnfurlServiceStack(Stack):
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "DEBUG",
+                # Service naming for observability - keep these in sync
                 "LOGFIRE_SERVICE_NAME": "unfurl-processor",
+                "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
                 "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
                 "PYTHONPATH": "/var/task:/var/runtime",
