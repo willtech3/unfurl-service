@@ -1,12 +1,12 @@
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import pytest
 
-aws_cdk = pytest.importorskip("aws_cdk")
-from aws_cdk import App
-from aws_cdk.assertions import Match, Template
-
-from cdk.stacks.unfurl_service_stack import UnfurlServiceStack
+if TYPE_CHECKING:
+    from aws_cdk.assertions import Match, Template
 
 RUN_CDK_TESTS = os.getenv("RUN_CDK_TESTS", "false").lower() == "true"
 
@@ -16,10 +16,22 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(scope="module")
-def template() -> Template:
+def template_and_match():
+    pytest.importorskip("aws_cdk")
+    from aws_cdk import App
+    from aws_cdk.assertions import Match, Template
+
+    from cdk.stacks.unfurl_service_stack import UnfurlServiceStack
+
     app = App(context={"env": "dev", "skip_asset_bundling": True})
     stack = UnfurlServiceStack(app, "UnfurlServiceTest")
-    return Template.from_stack(stack)
+    return Template.from_stack(stack), Match
+
+
+@pytest.fixture(scope="module")
+def template(template_and_match):
+    template, _ = template_and_match
+    return template
 
 
 def test_assets_bucket_configuration(template: Template) -> None:
@@ -44,16 +56,22 @@ def test_assets_bucket_configuration(template: Template) -> None:
     }
 
 
-def test_assets_bucket_is_public(template: Template) -> None:
+@pytest.fixture(scope="module")
+def match(template_and_match):
+    _, match = template_and_match
+    return match
+
+
+def test_assets_bucket_is_public(template: Template, match: Match) -> None:
     template.resource_count_is("AWS::S3::BucketPolicy", 1)
     template.has_resource_properties(
         "AWS::S3::BucketPolicy",
         {
-            "PolicyDocument": Match.object_like(
+            "PolicyDocument": match.object_like(
                 {
-                    "Statement": Match.array_with(
+                    "Statement": match.array_with(
                         [
-                            Match.object_like(
+                            match.object_like(
                                 {
                                     "Action": "s3:GetObject",
                                     "Effect": "Allow",
