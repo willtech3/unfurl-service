@@ -7,8 +7,9 @@ import time
 from typing import Any, Dict, List, Tuple
 
 import logfire
-from observability import metrics as m
 from aws_lambda_powertools import Logger
+
+from observability import metrics as m
 
 from ..merge_utils import merge_instagram_results
 from .base import BaseScraper, ScrapingResult
