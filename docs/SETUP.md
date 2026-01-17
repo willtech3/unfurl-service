@@ -20,7 +20,8 @@ This guide provides step-by-step instructions for setting up the Instagram Unfur
 
 ### 2. Instagram App Setup (Optional)
 
-This service does not require Instagram API credentials after removing the oEmbed fallback.
+This service does not require Instagram API credentials. It uses Playwright browser
+automation and HTTP scraping to extract content directly from Instagram pages.
 You can skip this section unless you plan future API integrations.
 
 ### 3. Slack App Setup
