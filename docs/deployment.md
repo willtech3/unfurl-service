@@ -174,8 +174,8 @@ aws logs tail /aws/lambda/unfurl-processor-prod --follow
 
 3. **Web scraping errors**
    - Instagram's HTML structure may have changed
-   - Check if the fallback oEmbed API is working
    - Review CloudWatch logs for specific errors
+   - Check Logfire traces for scraper fallback patterns
 
 4. **Performance issues**
    - Check DynamoDB cache hit rate
