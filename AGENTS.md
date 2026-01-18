@@ -1,83 +1,90 @@
 # Unfurl Service - Agent Guidelines
 
-This document serves as the primary source of truth for all AI Agents (Claude, Cursor, Windsurf, etc.) working on this codebase.
+Reference for AI agents (Claude, Cursor, etc.) working on this codebase.
 
-## ⚡️ Quick Start for Agents
+## Quick Start
 
-1.  **Package Manager**: We use **UV** for everything. Do NOT use pip directly.
-2.  **Formatter**: Black.
-3.  **Linter**: Flake8.
-4.  **Type Checker**: Mypy (Strict).
-5.  **Test Runner**: Pytest.
+- **Package Manager**: uv (not pip directly)
+- **Formatter**: Black (line length 88)
+- **Linter**: Flake8
+- **Type Checker**: mypy (lenient config - see pyproject.toml)
+- **Test Runner**: pytest
 
-## 🤖 AI Agent Bootstrap (Jules, Codex, etc.)
+## Environment Setup
 
-For sandboxed cloud environments, run the lightweight bootstrap script:
+For sandboxed environments (Jules, Codex, etc.):
 
 ```bash
 bash scripts/agent-setup.sh
 ```
 
-This script is optimized for ephemeral Linux VMs and will:
-- Auto-detect UV or fallback to pip
-- Create and activate a virtual environment
-- Install all dependencies including dev tools
-- Install Playwright Chromium for scraping tests
+For local development with pyenv:
 
-> **Note**: For local development with pyenv version management, use `scripts/setup_environment.sh` instead.
+```bash
+./scripts/setup_environment.sh
+```
 
-## 🛠 Project Environment
+## Common Commands
 
--   **Language**: Python 3.12.3
--   **Infrastructure**: AWS CDK
--   **Dependency Management**: UV
+```bash
+# Install dependencies
+uv pip install -e ".[dev,cdk]"
 
-### 📦 Dependency Management (UV)
+# Run tests
+uv run pytest
 
--   **Install Dependencies**: `uv pip install -e .` or `uv pip install -r requirements-docker.txt`
--   **Add Package**: `uv add <package>`
--   **Run Commands**: `uv run <command>` (e.g., `uv run pytest`)
--   **Lock Dependencies**: `uv pip freeze > requirements.lock`
+# Format code
+uv run black src/ tests/
 
-## 🚨 Development Rules (Critical)
+# Lint
+uv run flake8 src/ tests/
 
-1.  **Explanation Requirement**: Every code change MUST be accompanied by a clear explanation (What/Why/How/Impact/Testing) in the PR description or commit message.
-    -   *Example*: "Refactoring `scraper.py` to handle 404s (Why: reduce noise, How: try/except block, Impact: cleaner logs, Testing: unit tests added)."
-2.  **Command Explanation**: Every terminal command executed must be explained.
-    -   *Example*: "`uv run pytest` - Running unit tests to verify changes."
-3.  **No Secrets**: NEVER commit API keys or secrets. Use `.env` or AWS Secrets Manager.
-4.  **Feature Branches**: NEVER commit directly to `main`. Use `feature/<name>` branches.
-5.  **Tests**: All changes must include tests. run `uv run pytest` before finishing.
+# Type check
+uv run mypy src/
+```
 
-## 🔍 Code Quality Standards
+## Development Rules
 
-Before declaring a task complete, ensure these pass:
+1. **Explain changes**: Every code change needs What/Why/How/Impact/Testing in commit or PR
+2. **No secrets**: Use `.env` locally or AWS Secrets Manager in production
+3. **Feature branches**: Never commit directly to `main`
+4. **Tests required**: Run `uv run pytest` before finishing
 
-1.  **Format**: `uv run black .` (Line length: 88)
-2.  **Lint**: `uv run flake8 .` (Max line length: 88, ignore E203, W503)
-3.  **Types**: `uv run mypy . --strict`
-4.  **Tests**: `uv run pytest` (Coverage > 80%)
+## Code Quality
 
-### Configuration References
+Before completing a task:
 
--   `pyproject.toml`: Configuration for Black, Mypy, Pytest.
--   `.flake8`: Configuration for Flake8.
+```bash
+uv run black .          # Format
+uv run flake8 .         # Lint
+uv run mypy src/        # Type check (lenient)
+uv run pytest           # Tests
+```
 
-## 📝 Commit Standards
+Configuration in `pyproject.toml` and `.flake8`.
 
--   **Type**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
--   **Format**: `type(scope): description`
--   **Example**: `fix(scraper): handle instagram redirect loops`
+## Commit Format
 
-## 🏗 Architecture Context
+```
+type(scope): description
+```
 
--   **Event Router**: Lambda receiving Slack events (Fast, Sync).
--   **Unfurl Processor**: Container-based Lambda running Playwright (Slow/Async).
--   **Scrapers**: Modular strategy pattern (`PlaywrightScraper`, `HttpScraper`).
--   **Database**: DynamoDB for caching.
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
-## 🧪 Testing Guidelines
+Example: `fix(scraper): handle instagram redirect loops`
 
--   **Unit Tests**: `tests/unit/` - Fast, mock external calls.
--   **Integration Tests**: `tests/integration/` - Can use local Docker/services.
--   **Usage**: `uv run pytest -v`
+## Architecture
+
+- **Event Router** (`src/event_router/`): ZIP Lambda receiving Slack events
+- **Unfurl Processor** (`src/unfurl_processor/`): Container Lambda with Playwright
+- **Scrapers** (`src/unfurl_processor/scrapers/`): PlaywrightScraper, HttpScraper
+- **Cache**: DynamoDB
+
+## Testing
+
+Tests are in `tests/` directory:
+
+```bash
+uv run pytest -v
+uv run pytest --cov=src  # With coverage
+```

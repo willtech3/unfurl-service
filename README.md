@@ -1,203 +1,96 @@
 # Instagram Unfurl Service for Slack
 
-A high-performance, container-based serverless service that automatically unfurls Instagram links posted in Slack channels. Features advanced bot evasion techniques using Playwright browser automation and intelligent fallback strategies.
+Serverless service that unfurls Instagram links in Slack channels. Uses Playwright for browser-based scraping with HTTP fallback.
 
-## 🚀 Key Features
+## Architecture
 
-- **🤖 Advanced Bot Evasion**: Playwright browser automation with stealth techniques
-- **🔄 Intelligent Fallback**: Multi-layered scraping strategies for maximum success
-- **⚡ High Performance**: Container-based Lambda with ARM64 architecture
-- **💰 Cost Optimized**: DynamoDB caching and efficient resource usage
-- **🔒 Secure**: AWS Secrets Manager integration, no hardcoded credentials
+```
+API Gateway -> Event Router Lambda (ZIP) -> SNS -> Unfurl Processor Lambda (Container)
+                                                          |
+                                                    DynamoDB (cache)
+```
 
-## Architecture Overview
-
-This service uses a modern serverless architecture with container-based Lambda for enhanced capabilities:
-
-- **API Gateway** - Receives Slack events via webhooks
-- **Container Lambda** - Processes Instagram URLs using advanced scraping techniques
-- **Playwright Browser** - Headless browser automation for bot evasion
-- **SNS** - Decouples event reception from processing for reliability  
-- **DynamoDB** - Caches unfurled data to minimize scraping requests
-- **Secrets Manager** - Securely stores Slack API credentials
-- **ECR** - Container registry for Lambda deployment
-
-## 🛠️ Scraping Strategy
-
-The service uses a sophisticated multi-layer approach:
-
-1. **Playwright Browser Automation** (Primary)
-   - Headless Chromium with stealth settings
-   - Human-like behavior simulation
-   - Advanced bot detection evasion
-   - ~90% success rate
-
-2. **Enhanced HTTP Scraping** (Secondary)
-   - Session-based requests with realistic headers
-   - User agent rotation and proxy support
-   - Brotli/zstandard decompression handling
-   - ~60% success rate
-
-3. **Minimal Fallback** (Last Resort)
-   - Basic URL metadata extraction
-   - Ensures graceful degradation
+- **Event Router**: Receives Slack webhooks, publishes to SNS
+- **Unfurl Processor**: Container Lambda with Playwright, scrapes Instagram, posts unfurls to Slack
+- **DynamoDB**: Caches unfurled data (24h TTL)
+- **Secrets Manager**: Stores Slack credentials
 
 ## Prerequisites
 
 - Python 3.12+
-- [UV Package Manager](https://github.com/astral-sh/uv) for dependency management
-- Docker Desktop (for container builds)
-- AWS CLI configured with appropriate credentials
+- [uv](https://github.com/astral-sh/uv) package manager
+- Docker
+- AWS CLI configured
 - AWS CDK CLI (`npm install -g aws-cdk`)
-- Slack App with event subscriptions enabled
 
 ## Project Structure
 
-```text
+```
 unfurl-service/
-├── cdk/                           # CDK infrastructure code
-│   ├── app.py                    # CDK app entry point
-│   └── stacks/                   # CDK stack definitions
-├── src/                          # Lambda function source code
-│   ├── event_router/            # Handles incoming Slack events (ZIP-based)
-│   └── unfurl_processor/        # Container-based Instagram processor
-│       ├── scrapers/           # Modular scraping system
-│       │   ├── manager.py      # Orchestrates fallback strategies
-│       │   ├── playwright_scraper.py  # Browser automation
-│       │   └── http_scraper.py        # Enhanced HTTP scraping
-│       ├── url_utils.py        # Consolidated URL handling utilities
-│       ├── slack_formatter.py  # Rich Slack unfurl formatting
-│       ├── handler_async.py    # Async container Lambda handler
-│       └── entrypoint.py       # Container entrypoint (calls AsyncUnfurlHandler)
-├── scripts/                     # Development and deployment scripts
-│   ├── validate_environment.py # Environment validation
-│   └── test_docker_build.sh   # Local Docker testing
-├── tests/                       # Comprehensive test suite
-├── Dockerfile                   # Multi-stage container build
-├── requirements-docker.txt      # Container dependencies
-├── .github/workflows/          # GitHub Actions CI/CD
-├── pyproject.toml             # Project configuration
-└── cdk.json                   # CDK configuration
+├── cdk/                        # CDK infrastructure
+│   └── stacks/                 # Stack definitions
+├── src/
+│   ├── event_router/           # Slack event handler (ZIP Lambda)
+│   │   └── handler.py
+│   └── unfurl_processor/       # Instagram processor (Container Lambda)
+│       ├── scrapers/           # Scraping strategies
+│       │   ├── manager.py      # Orchestration
+│       │   ├── playwright_scraper.py
+│       │   └── http_scraper.py
+│       ├── handler_async.py    # Main handler
+│       ├── entrypoint.py       # Container entrypoint
+│       ├── url_utils.py        # URL normalization
+│       └── slack_formatter.py  # Unfurl formatting
+├── tests/
+├── scripts/
+├── Dockerfile
+└── pyproject.toml
 ```
 
-## 🔧 Development Setup
-
-1. **Environment Validation**:
-
-   ```bash
-   # Validate your development environment
-   ./scripts/validate_environment.py
-   ```
-
-2. **Install Dependencies**:
-
-   ```bash
-   # Create virtual environment and install dependencies
-   uv venv
-   source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-   uv pip install -e .
-   
-   # Install Playwright browsers
-   python -m playwright install chromium
-   ```
-
-3. **Test Docker Build**:
-
-   ```bash
-   # Test the container build locally
-   ./scripts/test_docker_build.sh
-   ```
-
-## 🚢 Deployment
-
-For detailed deployment instructions, see [DEPLOY.md](DEPLOY.md).
-
-### Quick Deploy via GitHub Actions
-
-1. **Configure Secrets**: Set up required GitHub secrets
-2. **Merge to `main`**: Deployment triggers automatically after PR merge
-
-   ```bash
-   # Open a PR to main; once approved and merged, CI/CD deploys automatically
-   ```
-
-### Manual Deployment
+## Development Setup
 
 ```bash
-# Deploy the infrastructure
-cdk deploy --all
+# Install dependencies
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev,cdk]"
 
-# Or deploy specific stacks
-cdk deploy UnfurlServiceStack
-```
+# Install Playwright browsers (for local testing)
+python -m playwright install chromium
 
-## 🧪 Testing
-
-```bash
-# Run all tests
+# Run tests
 uv run pytest
 
-# Run with coverage
-uv run pytest --cov=src --cov-report=html
-
-# Test specific components
-uv run pytest tests/test_scrapers/ -v
+# Lint and format
+uv run black src/ tests/
+uv run flake8 src/ tests/
+uv run mypy src/
 ```
 
-## 📊 Performance & Monitoring
+See `Makefile` for common commands.
 
-- **Cold Start**: ~3-5 seconds (container initialization)
-- **Warm Start**: ~100-500ms (cached browser)
-- **Memory Usage**: 512-1024MB (with Playwright)
-- **Success Rate**: 95%+ (with fallback strategies)
+## Deployment
 
-### Observability (Logfire)
+Deployment is automated via GitHub Actions on push to `main`. See [docs/deployment.md](docs/deployment.md) for manual deployment and Slack app setup.
 
-- Consolidated backend: Logfire for logs, spans/traces, and metrics.
-- Cross-Lambda tracing via W3C context in SNS `MessageAttributes`.
-- CloudWatch retains JSON-structured logs via Powertools Logger.
+## Observability
 
-Environment variables (set in CDK):
+Uses Logfire for logs, traces, and metrics. CloudWatch receives logs via Lambda stdout. See [docs/LOGFIRE.md](docs/LOGFIRE.md).
 
-- `LOGFIRE_SERVICE_NAME`: service identifier for Logfire traces/logs.
-- `LOGFIRE_TOKEN`: ingestion token (provided via CDK context `logfire_token`).
-- `LOG_LEVEL` (optional): controls stdlib root logger level (e.g., `INFO`, `DEBUG`).
+## Scraping Strategy
 
-Notes:
+1. **Playwright** (primary): Headless browser with stealth settings
+2. **HTTP** (fallback): Session-based requests with header rotation
 
-- API Gateway execution tracing/logging disabled to reduce noisy CloudWatch log groups.
-- Lambda X-Ray disabled; Logfire is the source of truth for traces and metrics.
-- Standard Python logging is bridged to Logfire; CloudWatch still receives logs via Lambda stdout.
-- Custom CloudWatch metrics have been removed; metrics are emitted via Logfire instruments
-  defined in `src/observability/metrics.py`.
+Both extract metadata from Instagram's HTML. No API credentials required.
 
-## 🔐 Security
+## Documentation
 
-- Slack tokens stored in AWS Secrets Manager
-- No hardcoded credentials in source code
-- IAM roles with least-privilege access
-- VPC isolation for sensitive workloads (optional)
-- Bot detection evasion respects rate limits
-
-## 🏗️ Architecture Decisions
-
-- **Container Lambda**: Enables Playwright browser dependencies
-- **ARM64 Architecture**: Better price/performance ratio
-- **Modular Scrapers**: Maintainable fallback strategies
-- **Async Processing**: Handles multiple URLs concurrently
-- **Rich Media Support**: Video playback in Slack unfurls
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- [Deployment Guide](docs/deployment.md) - AWS and Slack setup
+- [Slack Configuration](docs/slack_configuration.md) - Slack app settings
+- [Logfire Setup](docs/LOGFIRE.md) - Observability configuration
+- [URL Normalization](docs/url-normalization.md) - URL handling details
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-<!-- Deployment trigger: 2025-06-08 23:59:45 UTC -->
+MIT - see [LICENSE](LICENSE)
