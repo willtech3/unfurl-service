@@ -10,16 +10,18 @@ import html
 import json
 import os
 import time
+from base64 import b64decode
 from typing import Any, Dict, cast
 
 import boto3
 import logfire
-from observability import metrics as m
-from observability.logging import setup_logfire
 
 # Type imports for boto3
 from botocore.client import BaseClient
 from opentelemetry.propagate import inject
+
+from observability import metrics as m
+from observability.logging import setup_logfire
 
 # Configure Logfire and bridge stdlib logging (with console output)
 setup_logfire(enable_console_output=True)
@@ -45,7 +47,13 @@ def verify_slack_signature(
 ) -> bool:
     """Verify the Slack request signature."""
     # Check timestamp to prevent replay attacks
-    if abs(time.time() - float(timestamp)) > 60 * 5:
+    try:
+        request_timestamp = float(timestamp)
+    except (TypeError, ValueError):
+        logfire.warning("Invalid Slack request timestamp", timestamp=timestamp)
+        return False
+
+    if abs(time.time() - request_timestamp) > 60 * 5:
         logfire.warning("Request timestamp is too old")
         return False
 
@@ -79,12 +87,47 @@ def get_slack_secret() -> Dict[str, str]:
         raise
 
 
+def _get_body_str(event: Dict[str, Any]) -> str:
+    body = event.get("body") or ""
+    if not isinstance(body, str):
+        return ""
+
+    if event.get("isBase64Encoded"):
+        try:
+            return b64decode(body).decode("utf-8")
+        except Exception:
+            logfire.exception("Failed to decode base64 request body")
+            return ""
+
+    return body
+
+
+def _get_header(event: Dict[str, Any], name: str) -> str:
+    header_name = name.lower()
+
+    headers = event.get("headers") or {}
+    if isinstance(headers, dict):
+        for key, value in headers.items():
+            if isinstance(key, str) and key.lower() == header_name and value:
+                return str(value)
+
+    multi_headers = event.get("multiValueHeaders") or {}
+    if isinstance(multi_headers, dict):
+        for key, values in multi_headers.items():
+            if isinstance(key, str) and key.lower() == header_name and values:
+                first = values[0] if isinstance(values, list) else values
+                if first:
+                    return str(first)
+
+    return ""
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
     logfire.info("Received event", event=event)
 
     # Check if this is a URL verification challenge
-    body_str = event.get("body", "{}")
+    body_str = _get_body_str(event) or "{}"
     try:
         body = json.loads(body_str) if body_str else {}
     except json.JSONDecodeError:
@@ -99,11 +142,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Handle regular Slack events
     try:
         # Parse the request body
-        headers = event.get("headers", {})
-
         # Get Slack signature headers
-        slack_signature = headers.get("X-Slack-Signature", "")
-        slack_timestamp = headers.get("X-Slack-Request-Timestamp", "")
+        slack_signature = _get_header(event, "X-Slack-Signature")
+        slack_timestamp = _get_header(event, "X-Slack-Request-Timestamp")
 
         # Get signing secret
         secrets = get_slack_secret()

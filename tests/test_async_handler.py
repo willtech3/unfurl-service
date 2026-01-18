@@ -86,6 +86,40 @@ class TestAsyncUnfurlHandler:
         formatter2 = handler._get_slack_formatter()
         assert formatter1 is formatter2
 
+    def test_create_http_client_disables_http2_when_h2_missing(self, handler):
+        """HTTP/2 should disable when optional 'h2' is absent."""
+        with (
+            patch(
+                "src.unfurl_processor.handler_async.importlib.util.find_spec",
+                return_value=None,
+            ),
+            patch(
+                "src.unfurl_processor.handler_async.httpx.AsyncClient"
+            ) as mock_client,
+            patch.object(handler.logger, "warning") as mock_warning,
+        ):
+            handler._create_http_client()
+
+        assert mock_client.call_args.kwargs["http2"] is False
+        mock_warning.assert_called_once()
+
+    def test_create_http_client_enables_http2_when_h2_present(self, handler):
+        """HTTP/2 should enable when optional 'h2' is present."""
+        with (
+            patch(
+                "src.unfurl_processor.handler_async.importlib.util.find_spec",
+                return_value=object(),
+            ),
+            patch(
+                "src.unfurl_processor.handler_async.httpx.AsyncClient"
+            ) as mock_client,
+            patch.object(handler.logger, "warning") as mock_warning,
+        ):
+            handler._create_http_client()
+
+        assert mock_client.call_args.kwargs["http2"] is True
+        mock_warning.assert_not_called()
+
     def test_extract_instagram_id(self, handler):
         """Test Instagram ID extraction from URLs."""
         test_cases = [
@@ -118,11 +152,11 @@ class TestAsyncUnfurlHandler:
         expected = [
             {
                 "original_url": "https://www.instagram.com/p/ABC123/",
-                "canonical_url": "https://www.instagram.com/p/ABC123"
+                "canonical_url": "https://www.instagram.com/p/ABC123",
             },
             {
                 "original_url": "https://www.instagram.com/reel/XYZ789/",
-                "canonical_url": "https://www.instagram.com/reel/XYZ789"
+                "canonical_url": "https://www.instagram.com/reel/XYZ789",
             },
         ]
         assert result == expected
@@ -284,6 +318,98 @@ class TestAsyncUnfurlHandler:
         mock_fetch.assert_called_once_with(url)
         mock_format.assert_called_once_with(sample_instagram_data)
         mock_cache_unfurl.assert_called_once_with(url, formatted_data)
+
+    @pytest.mark.asyncio
+    @patch("src.unfurl_processor.handler_async.AsyncUnfurlHandler._format_unfurl_data")
+    @patch("src.unfurl_processor.handler_async.AsyncUnfurlHandler._cache_unfurl")
+    @patch(
+        "src.unfurl_processor.handler_async.AsyncUnfurlHandler._fetch_instagram_data"
+    )
+    async def test_process_single_link_persists_assets(
+        self,
+        mock_fetch,
+        mock_cache,
+        mock_format,
+        handler,
+        sample_instagram_data,
+        monkeypatch,
+    ):
+        """Uploaded assets should replace the transient Instagram URL."""
+
+        url = "https://www.instagram.com/p/ABC123/"
+        monkeypatch.setenv("ASSETS_BUCKET_NAME", "assets-bucket")
+
+        mock_fetch.return_value = sample_instagram_data.copy()
+        mock_format.return_value = {"formatted": True}
+
+        mock_asset_manager = AsyncMock()
+        mock_asset_manager.upload_image.return_value = (
+            "https://assets-bucket.s3.us-west-2.amazonaws.com/instagram/ABC123/img.jpg"
+        )
+
+        with (
+            patch.object(handler, "_get_cached_unfurl", return_value=None),
+            patch.object(
+                handler, "_get_asset_manager", return_value=mock_asset_manager
+            ),
+            patch.object(handler, "_extract_instagram_id", return_value="ABC123"),
+        ):
+            result_url, result_data = await handler._process_single_link(url)
+
+        mock_asset_manager.upload_image.assert_called_once_with(
+            sample_instagram_data["image_url"], "ABC123"
+        )
+        formatted_input = mock_format.call_args.args[0]
+        assert (
+            formatted_input["image_url"] == mock_asset_manager.upload_image.return_value
+        )
+        mock_cache.assert_called_once_with(url, mock_format.return_value)
+        assert result_url == url
+        assert result_data == mock_format.return_value
+
+    @pytest.mark.asyncio
+    @patch("src.unfurl_processor.handler_async.AsyncUnfurlHandler._format_unfurl_data")
+    @patch("src.unfurl_processor.handler_async.AsyncUnfurlHandler._cache_unfurl")
+    @patch(
+        "src.unfurl_processor.handler_async.AsyncUnfurlHandler._fetch_instagram_data"
+    )
+    async def test_process_single_link_uses_original_url_when_upload_fails(
+        self,
+        mock_fetch,
+        mock_cache,
+        mock_format,
+        handler,
+        sample_instagram_data,
+        monkeypatch,
+    ):
+        """If persistence fails, fall back to the scraped image URL."""
+
+        url = "https://www.instagram.com/p/ABC123/"
+        monkeypatch.setenv("ASSETS_BUCKET_NAME", "assets-bucket")
+
+        mock_fetch.return_value = sample_instagram_data.copy()
+        mock_format.return_value = {"formatted": True}
+
+        mock_asset_manager = AsyncMock()
+        mock_asset_manager.upload_image.return_value = None
+
+        with (
+            patch.object(handler, "_get_cached_unfurl", return_value=None),
+            patch.object(
+                handler, "_get_asset_manager", return_value=mock_asset_manager
+            ),
+            patch.object(handler, "_extract_instagram_id", return_value="ABC123"),
+        ):
+            result_url, result_data = await handler._process_single_link(url)
+
+        mock_asset_manager.upload_image.assert_called_once_with(
+            sample_instagram_data["image_url"], "ABC123"
+        )
+        formatted_input = mock_format.call_args.args[0]
+        assert formatted_input["image_url"] == sample_instagram_data["image_url"]
+        mock_cache.assert_called_once_with(url, mock_format.return_value)
+        assert result_url == url
+        assert result_data == mock_format.return_value
 
     @pytest.mark.asyncio
     @patch("src.unfurl_processor.handler_async.AsyncUnfurlHandler._get_secret")
