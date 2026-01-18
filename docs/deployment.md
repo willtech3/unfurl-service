@@ -102,6 +102,54 @@ https://{api-id}.execute-api.us-east-2.amazonaws.com/prod/slack/events
 - Check CloudWatch logs for errors
 - Default timeout may need adjustment in CDK stack
 
+**Web scraping errors:**
+- Instagram's HTML structure may have changed
+- Review CloudWatch logs for specific errors
+- Check Logfire traces for scraper fallback patterns
+
+**Performance issues:**
+- Check DynamoDB cache hit rate
+- Monitor Lambda cold starts
+- Consider increasing Lambda memory/timeout
+
+### Metrics
+
+Metrics are consolidated in Logfire. Custom CloudWatch metrics have been
+removed to reduce duplication and cost. See `docs/LOGFIRE.md` and the
+centralized instruments in `src/observability/metrics.py`.
+
+## Security Considerations
+
+- Secrets are stored in AWS Secrets Manager
+- Lambda functions have minimal IAM permissions
+- All traffic is encrypted via HTTPS
+- DynamoDB encryption at rest is enabled
+- CloudWatch logs are retained for 7 days
+
+## Cost Optimization
+
+The service is designed to be cost-efficient:
+- Lambda functions only run when links are shared
+- DynamoDB uses on-demand billing
+- 24-hour cache reduces redundant scraping
+- Reserved concurrency prevents runaway costs
+
+Estimated monthly cost for moderate usage (10K unfurls):
+- Lambda: ~$2
+- DynamoDB: ~$1
+- API Gateway: ~$3
+- Total: ~$6/month
+
+## Updating the Service
+
+To update the deployed service:
+
+1. Make code changes
+2. Push to main branch (for GitHub Actions)
+3. Or run `cdk deploy --all` manually
+
+CDK will only update changed resources, minimizing deployment time.
+
 ## Cleanup
 
 ```bash

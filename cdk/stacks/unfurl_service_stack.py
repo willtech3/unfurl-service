@@ -5,6 +5,7 @@ from aws_cdk import (
     BundlingOptions,
     aws_lambda as lambda_,
     aws_dynamodb as dynamodb,
+    aws_s3 as s3,
     aws_sns as sns,
     aws_sns_subscriptions as sns_subs,
     aws_apigateway as apigw,
@@ -22,6 +23,7 @@ class UnfurlServiceStack(Stack):
 
         # Environment name
         env_name = self.node.try_get_context("env") or "dev"
+        skip_asset_bundling = self.node.try_get_context("skip_asset_bundling") or False
 
         # DynamoDB table for caching unfurled data
         cache_table = dynamodb.Table(
@@ -50,6 +52,27 @@ class UnfurlServiceStack(Stack):
             time_to_live_attribute="ttl",
         )
 
+        # S3 bucket for persisted assets
+        assets_bucket = s3.Bucket(
+            self,
+            "UnfurlAssets",
+            bucket_name=f"unfurl-assets-{env_name}",
+            public_read_access=True,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    expiration=Duration.days(30),
+                )
+            ],
+        )
+
         # SNS topic for async processing
         unfurl_topic = sns.Topic(
             self,
@@ -64,10 +87,10 @@ class UnfurlServiceStack(Stack):
         )
 
         # Lambda layer for Event Router dependencies
-        deps_layer = lambda_.LayerVersion(
-            self,
-            "EventRouterDeps",
-            code=lambda_.Code.from_asset(
+        deps_layer_code = (
+            lambda_.Code.from_asset("cdk")
+            if skip_asset_bundling
+            else lambda_.Code.from_asset(
                 ".",
                 bundling=BundlingOptions(
                     image=lambda_.Runtime.PYTHON_3_12.bundling_image,
@@ -100,7 +123,13 @@ class UnfurlServiceStack(Stack):
                         ),
                     ],
                 ),
-            ),
+            )
+        )
+
+        deps_layer = lambda_.LayerVersion(
+            self,
+            "EventRouterDeps",
+            code=deps_layer_code,
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             compatible_architectures=[lambda_.Architecture.ARM_64],
             description="Event router dependencies with ARM64 support",
@@ -139,54 +168,66 @@ class UnfurlServiceStack(Stack):
 
         # Unfurl processor Lambda function (container-based)
         # Single optimized deployment approach
+        processor_runtime = lambda_.Runtime.FROM_IMAGE
+        processor_handler = lambda_.Handler.FROM_IMAGE
+        processor_code = lambda_.Code.from_asset_image(
+            directory=".",
+            platform=ecr_assets.Platform.LINUX_ARM64,
+            build_args={
+                "DOCKER_BUILDKIT": "1",
+                "BUILDKIT_INLINE_CACHE": "1",
+            },
+            # Exclude everything except essential files for faster upload
+            exclude=[
+                "cdk.out",
+                "cdk-deploy-out",
+                "node_modules",
+                ".git",
+                "__pycache__",
+                "*.pyc",
+                ".pytest_cache",
+                ".venv",
+                "*.md",
+                "docs/",
+                "tests/",
+                ".github/",
+                "*.log",
+                "*.tmp",
+                ".DS_Store",
+                "response.json",
+                "test-payload.json",
+                ".dockerignore.bak",
+                "Dockerfile.base",
+                "Dockerfile.fast",
+            ],
+        )
+
+        if skip_asset_bundling:
+            processor_runtime = lambda_.Runtime.PYTHON_3_12
+            processor_handler = "index.handler"
+            processor_code = lambda_.Code.from_asset("cdk")
+
         unfurl_processor = lambda_.Function(
             self,
             "UnfurlProcessor",
             function_name="unfurl-processor",
-            runtime=lambda_.Runtime.FROM_IMAGE,
+            runtime=processor_runtime,
             architecture=lambda_.Architecture.ARM_64,
-            handler=lambda_.Handler.FROM_IMAGE,
-            code=lambda_.Code.from_asset_image(
-                directory=".",
-                platform=ecr_assets.Platform.LINUX_ARM64,
-                build_args={
-                    "DOCKER_BUILDKIT": "1",
-                    "BUILDKIT_INLINE_CACHE": "1",
-                },
-                # Exclude everything except essential files for faster upload
-                exclude=[
-                    "cdk.out",
-                    "cdk-deploy-out",
-                    "node_modules",
-                    ".git",
-                    "__pycache__",
-                    "*.pyc",
-                    ".pytest_cache",
-                    ".venv",
-                    "*.md",
-                    "docs/",
-                    "tests/",
-                    ".github/",
-                    "*.log",
-                    "*.tmp",
-                    ".DS_Store",
-                    "response.json",
-                    "test-payload.json",
-                    ".dockerignore.bak",
-                    "Dockerfile.base",
-                    "Dockerfile.fast",
-                ],
-            ),
+            handler=processor_handler,
+            code=processor_code,
             environment={
                 "CACHE_TABLE_NAME": cache_table.table_name,
                 "DEDUPLICATION_TABLE_NAME": deduplication_table.table_name,
                 "SLACK_SECRET_NAME": slack_secret.secret_name,
                 "CACHE_TTL_HOURS": "72",
                 "LOG_LEVEL": "DEBUG",
+                # Service naming for observability - keep these in sync
                 "LOGFIRE_SERVICE_NAME": "unfurl-processor",
+                "POWERTOOLS_SERVICE_NAME": "unfurl-processor",
                 "LOGFIRE_TOKEN": self.node.try_get_context("logfire_token") or "",
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
                 "PYTHONPATH": "/var/task:/var/runtime",
+                "ASSETS_BUCKET_NAME": assets_bucket.bucket_name,
             },
             timeout=Duration.minutes(5),  # Increased for Playwright browser startup
             memory_size=1024,  # Increased for browser automation
@@ -198,6 +239,8 @@ class UnfurlServiceStack(Stack):
         # Grant permissions to unfurl processor
         cache_table.grant_read_write_data(unfurl_processor)
         deduplication_table.grant_read_write_data(unfurl_processor)
+        assets_bucket.grant_write(unfurl_processor)
+        assets_bucket.grant_read(unfurl_processor)
         slack_secret.grant_read(unfurl_processor)
 
         # CloudWatch custom metrics removed; no PutMetricData permission needed

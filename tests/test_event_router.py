@@ -1,5 +1,6 @@
 """Tests for the event router Lambda handler."""
 
+import base64
 import hashlib
 import hmac
 import json
@@ -74,6 +75,18 @@ class TestEventRouter:
 
         assert verify_slack_signature(body, timestamp, sig, secret) is False
 
+    def test_verify_slack_signature_invalid_timestamp(self):
+        """Test signature verification with invalid timestamp."""
+        assert (
+            verify_slack_signature(
+                body="{}",
+                timestamp="not-a-timestamp",
+                signature="v0=x",
+                signing_secret="x",
+            )
+            is False
+        )
+
     @mock_secretsmanager
     def test_get_slack_secret(self):
         """Test retrieving Slack secrets from Secrets Manager."""
@@ -130,6 +143,56 @@ class TestEventRouter:
 
         event = {
             "body": body,
+            "headers": {
+                "X-Slack-Signature": signature,
+                "X-Slack-Request-Timestamp": timestamp,
+            },
+        }
+
+        with patch.dict(
+            "os.environ",
+            {
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-2:123456789012:test-topic",
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+                "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
+            },
+        ):
+            response = lambda_handler(event, MockLambdaContext())
+
+        assert response["statusCode"] == 200
+        assert json.loads(response["body"])["challenge"] == challenge
+
+    @mock_secretsmanager
+    def test_lambda_handler_url_verification_base64_body(self):
+        """Test handling base64-encoded URL verification challenge."""
+        import boto3
+
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
+        sm.create_secret(
+            Name="unfurl-service/slack",
+            SecretString=json.dumps(
+                {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
+            ),
+        )
+
+        challenge = "test_challenge_value"
+        raw_body = json.dumps({"type": "url_verification", "challenge": challenge})
+        body_b64 = base64.b64encode(raw_body.encode("utf-8")).decode("utf-8")
+
+        timestamp = str(int(time.time()))
+        sig_basestring = f"v0:{timestamp}:{raw_body}"
+        signature = (
+            "v0="
+            + hmac.new(
+                b"test_secret", sig_basestring.encode(), hashlib.sha256
+            ).hexdigest()
+        )
+
+        event = {
+            "body": body_b64,
+            "isBase64Encoded": True,
             "headers": {
                 "X-Slack-Signature": signature,
                 "X-Slack-Request-Timestamp": timestamp,
@@ -221,6 +284,74 @@ class TestEventRouter:
                 "headers": {
                     "X-Slack-Signature": signature,
                     "X-Slack-Request-Timestamp": timestamp,
+                },
+            }
+
+            response = lambda_handler(event, MockLambdaContext())
+
+        assert response["statusCode"] == 200
+        assert json.loads(response["body"]) == {"status": "ok"}
+
+    @mock_secretsmanager
+    @mock_sns
+    def test_lambda_handler_link_shared_event_lowercase_headers(self):
+        """Test handling link_shared when API Gateway lowercases header keys."""
+        import boto3
+
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
+        sm.create_secret(
+            Name="unfurl-service/slack",
+            SecretString=json.dumps(
+                {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
+            ),
+        )
+
+        slack_event = {
+            "type": "event_callback",
+            "event_id": "Ev123456",
+            "team_id": "T123456",
+            "event": {
+                "type": "link_shared",
+                "channel": "C123456",
+                "message_ts": "1234567890.123456",
+                "links": [
+                    {
+                        "url": "https://www.instagram.com/p/ABC123/",
+                        "domain": "instagram.com",
+                    }
+                ],
+            },
+        }
+
+        sns = boto3.client("sns", region_name="us-east-2")
+        topic_response = sns.create_topic(Name="test-topic")
+        topic_arn = topic_response["TopicArn"]
+
+        with patch.dict(
+            "os.environ",
+            {
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "SNS_TOPIC_ARN": topic_arn,
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+                "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
+            },
+        ):
+            body = json.dumps(slack_event)
+            timestamp = str(int(time.time()))
+            sig_basestring = f"v0:{timestamp}:{body}"
+            signature = (
+                "v0="
+                + hmac.new(
+                    b"test_secret", sig_basestring.encode(), hashlib.sha256
+                ).hexdigest()
+            )
+
+            event = {
+                "body": body,
+                "headers": {
+                    "x-slack-signature": signature,
+                    "x-slack-request-timestamp": timestamp,
                 },
             }
 

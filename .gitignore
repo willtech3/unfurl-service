@@ -244,6 +244,8 @@ cdk-deploy-out/
 *.tmp
 debug_*.py
 test_*.py
+!tests/test_*.py
+!tests/**/test_*.py
 test-*.json
 *.b64
 fix_*.txt

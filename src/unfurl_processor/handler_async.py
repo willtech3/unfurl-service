@@ -10,6 +10,7 @@ Optimized for Docker-based Lambda with:
 """
 
 import asyncio
+import importlib.util
 import json
 import os
 import time
@@ -19,14 +20,16 @@ from typing import Any, Dict, List, Optional
 import boto3
 import httpx
 import logfire
-from observability import metrics as m
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.exceptions import ClientError
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 
+from observability import metrics as m
+
 # Using AWS Lambda Powertools logger instead of src.logger
+from .asset_manager import AssetManager
 from .scrapers.manager import ScraperManager
 from .slack_formatter import SlackFormatter
 from .url_utils import (
@@ -59,6 +62,7 @@ class AsyncUnfurlHandler:
         self.dynamodb = None
         self.http_client = None
         self.deduplication_table = None
+        self.asset_manager = None
 
         # Initialize on first use for better cold start performance
 
@@ -96,15 +100,37 @@ class AsyncUnfurlHandler:
                 self.dynamodb = None
         return self.dynamodb
 
+    def _create_http_client(self) -> httpx.AsyncClient:
+        http2_enabled = importlib.util.find_spec("h2") is not None
+        if not http2_enabled:
+            self.logger.warning(
+                "HTTP/2 disabled for httpx client because 'h2' is not installed"
+            )
+        return httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+            http2=http2_enabled,
+        )
+
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get HTTP client for async operations."""
         if self.http_client is None:
-            self.http_client = httpx.AsyncClient(
-                timeout=30.0,
-                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-                http2=True,
-            )
+            self.http_client = self._create_http_client()
         return self.http_client
+
+    def _get_asset_manager(self) -> Optional[AssetManager]:
+        """Create or reuse the AssetManager when bucket envs are configured."""
+
+        if not os.environ.get("ASSETS_BUCKET_NAME"):
+            return None
+
+        if self.asset_manager is None:
+            if self.http_client is None:
+                self.http_client = self._create_http_client()
+
+            self.asset_manager = AssetManager(http_client=self.http_client)
+
+        return self.asset_manager
 
     async def _get_secret(self, secret_name: str) -> Dict[str, Any]:
         """Get secrets from Secrets Manager with caching."""
@@ -496,6 +522,17 @@ class AsyncUnfurlHandler:
 
             # Fetch fresh data
             instagram_data = await self._fetch_instagram_data(url)
+
+            if instagram_data:
+                asset_manager = self._get_asset_manager()
+                post_id = self._extract_instagram_id(url)
+                target_url = instagram_data.get("image_url")
+
+                if asset_manager is not None and target_url and post_id:
+                    s3_url = await asset_manager.upload_image(target_url, post_id)
+                    if s3_url:
+                        instagram_data["image_url"] = s3_url
+                        self.logger.info(f"Persisted asset for {post_id} to {s3_url}")
 
             # Format for Slack
             unfurl_data = self._format_unfurl_data(instagram_data)

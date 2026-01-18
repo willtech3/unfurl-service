@@ -6,7 +6,7 @@ slack-sdk==3.26.2
 
 # HTTP dependencies (wheel-compatible versions)
 requests==2.31.0
-httpx==0.26.0
+httpx[http2]==0.26.0
 # Required by slack-sdk AsyncWebClient for concurrent processing
 aiohttp==3.12.6
 
