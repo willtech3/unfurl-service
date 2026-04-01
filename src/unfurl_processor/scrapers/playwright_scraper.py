@@ -279,6 +279,14 @@ class PlaywrightScraper(BaseScraper):
         """Scrape Instagram data using optimized Playwright automation."""
         start_time = time.time()
 
+        if not self.validate_instagram_url(url):
+            return ScrapingResult(
+                success=False,
+                error="Invalid Instagram URL",
+                method=self.name,
+                response_time_ms=self.measure_time(start_time),
+            )
+
         if not PLAYWRIGHT_AVAILABLE:
             return ScrapingResult(
                 success=False,

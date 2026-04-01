@@ -3,6 +3,49 @@
 from typing import Optional
 from urllib.parse import urlparse
 
+CANONICAL_INSTAGRAM_HOST = "www.instagram.com"
+INSTAGRAM_MEDIA_TYPES = {"p", "reel", "tv"}
+
+
+def _get_parsed_instagram_url(url: str):
+    if not isinstance(url, str) or not url:
+        return None
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+
+    hostname = (parsed.hostname or parsed.netloc or "").lower()
+    if not hostname:
+        return None
+
+    return parsed, hostname
+
+
+def _is_instagram_hostname(hostname: str) -> bool:
+    return hostname == "instagram.com" or hostname.endswith(".instagram.com")
+
+
+def _get_instagram_media_parts(url: str) -> Optional[tuple[str, str]]:
+    parsed_url = _get_parsed_instagram_url(url)
+    if parsed_url is None:
+        return None
+
+    parsed, hostname = parsed_url
+    if not _is_instagram_hostname(hostname):
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return None
+
+    media_type, media_id = path_parts[0].lower(), path_parts[1]
+    if media_type not in INSTAGRAM_MEDIA_TYPES or not media_id:
+        return None
+
+    return media_type, media_id
+
 
 def extract_instagram_id(url: str) -> Optional[str]:
     """
@@ -19,19 +62,12 @@ def extract_instagram_id(url: str) -> Optional[str]:
     Returns:
         Post ID if found, None otherwise
     """
-    try:
-        parsed = urlparse(url)
-        # Validate it's an Instagram domain first
-        if parsed.netloc not in ("instagram.com", "www.instagram.com", ""):
-            return None
-
-        path_parts = [p for p in parsed.path.split("/") if p]
-
-        if len(path_parts) >= 2 and path_parts[0] in ["p", "reel", "tv"]:
-            return path_parts[1]
+    media_parts = _get_instagram_media_parts(url)
+    if media_parts is None:
         return None
-    except Exception:
-        return None
+
+    _, media_id = media_parts
+    return media_id
 
 
 def canonicalize_instagram_url(url: str) -> str:
@@ -49,27 +85,24 @@ def canonicalize_instagram_url(url: str) -> str:
     Returns:
         Canonical URL for consistent cache keys
     """
-    try:
-        parsed = urlparse(url)
-
-        # If it doesn't have a scheme, return original (likely invalid)
-        if not parsed.scheme:
-            return url
-
-        # Ensure consistent netloc
-        netloc = parsed.netloc if parsed.netloc else "www.instagram.com"
-        if not netloc.startswith("www."):
-            netloc = "www." + netloc
-
-        # Build path without trailing slash for consistency
-        path = parsed.path.rstrip("/")
-        if not path:
-            path = "/"
-
-        return f"{parsed.scheme}://{netloc}{path}"
-    except Exception:
-        # Return original if parsing fails
+    parsed_url = _get_parsed_instagram_url(url)
+    if parsed_url is None:
         return url
+
+    parsed, hostname = parsed_url
+
+    # If it doesn't have a scheme, return original (likely invalid)
+    if not parsed.scheme:
+        return url
+
+    media_parts = _get_instagram_media_parts(url)
+    if media_parts is None:
+        return url
+
+    media_type, media_id = media_parts
+    netloc = CANONICAL_INSTAGRAM_HOST
+
+    return f"{parsed.scheme}://{netloc}/{media_type}/{media_id}"
 
 
 def validate_instagram_url(url: str) -> bool:
@@ -82,16 +115,15 @@ def validate_instagram_url(url: str) -> bool:
     Returns:
         True if valid Instagram post URL, False otherwise
     """
-    try:
-        parsed = urlparse(url)
-        # Check domain
-        if parsed.netloc not in ("instagram.com", "www.instagram.com"):
-            return False
-
-        # Check for valid post paths
-        return any(pattern in parsed.path for pattern in ("/p/", "/reel/", "/tv/"))
-    except Exception:
+    parsed_url = _get_parsed_instagram_url(url)
+    if parsed_url is None:
         return False
+
+    parsed, _ = parsed_url
+    if parsed.scheme != "https":
+        return False
+
+    return _get_instagram_media_parts(url) is not None
 
 
 def is_instagram_video_url(url: str) -> bool:

@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from moto import mock_secretsmanager, mock_sns
 
@@ -57,6 +57,18 @@ class TestEventRouter:
         invalid_sig = "v0=invalid_signature"
 
         assert verify_slack_signature(body, timestamp, invalid_sig, secret) is False
+
+    def test_verify_slack_signature_malformed(self):
+        """Test signature verification with malformed signature input."""
+        assert (
+            verify_slack_signature(
+                body="{}",
+                timestamp=str(int(time.time())),
+                signature="not-a-slack-signature",
+                signing_secret="test_secret",
+            )
+            is False
+        )
 
     def test_verify_slack_signature_old_timestamp(self):
         """Test signature verification with old timestamp."""
@@ -215,6 +227,37 @@ class TestEventRouter:
         assert json.loads(response["body"])["challenge"] == challenge
 
     @mock_secretsmanager
+    def test_lambda_handler_url_verification_requires_signature(self):
+        """Unsigned URL verification requests should be rejected."""
+        import boto3
+
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
+        sm.create_secret(
+            Name="unfurl-service/slack",
+            SecretString=json.dumps(
+                {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
+            ),
+        )
+
+        body = json.dumps({"type": "url_verification", "challenge": "abc123"})
+        event = {"body": body, "headers": {}}
+
+        with patch.dict(
+            "os.environ",
+            {
+                "SLACK_SECRET_NAME": "unfurl-service/slack",
+                "SNS_TOPIC_ARN": "arn:aws:sns:us-east-2:123456789012:test-topic",
+                "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+                "DISABLE_METRICS": "true",
+                "AWS_DEFAULT_REGION": "us-east-2",
+            },
+        ):
+            response = lambda_handler(event, MockLambdaContext())
+
+        assert response["statusCode"] == 401
+        assert json.loads(response["body"]) == {"error": "Unauthorized"}
+
+    @mock_secretsmanager
     @mock_sns
     def test_lambda_handler_link_shared_event(self):
         """Test handling link_shared event with Instagram URL."""
@@ -291,6 +334,83 @@ class TestEventRouter:
 
         assert response["statusCode"] == 200
         assert json.loads(response["body"]) == {"status": "ok"}
+
+    @mock_secretsmanager
+    def test_lambda_handler_link_shared_event_accepts_instagram_subdomains(self):
+        """Valid Instagram subdomains should still be published for processing."""
+        import boto3
+
+        sm = boto3.client("secretsmanager", region_name="us-east-2")
+        sm.create_secret(
+            Name="unfurl-service/slack",
+            SecretString=json.dumps(
+                {"signing_secret": "test_secret", "bot_token": "xoxb-test"}
+            ),
+        )
+
+        slack_event = {
+            "type": "event_callback",
+            "event": {
+                "type": "link_shared",
+                "channel": "C123456",
+                "message_ts": "1234567890.123456",
+                "unfurl_id": "Uf123456",
+                "links": [
+                    {
+                        "url": "https://m.instagram.com/p/ABC123/",
+                        "domain": "m.instagram.com",
+                    }
+                ],
+            },
+        }
+
+        body = json.dumps(slack_event)
+        timestamp = str(int(time.time()))
+        sig_basestring = f"v0:{timestamp}:{body}"
+        signature = (
+            "v0="
+            + hmac.new(
+                b"test_secret", sig_basestring.encode(), hashlib.sha256
+            ).hexdigest()
+        )
+
+        event = {
+            "body": body,
+            "headers": {
+                "X-Slack-Signature": signature,
+                "X-Slack-Request-Timestamp": timestamp,
+            },
+        }
+        mock_sns_client = MagicMock()
+
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "SLACK_SECRET_NAME": "unfurl-service/slack",
+                    "SNS_TOPIC_ARN": "arn:aws:sns:us-east-2:123456789012:test-topic",
+                    "POWERTOOLS_METRICS_NAMESPACE": "UnfurlService",
+                    "DISABLE_METRICS": "true",
+                    "AWS_DEFAULT_REGION": "us-east-2",
+                },
+            ),
+            patch(
+                "src.event_router.handler.get_sns_client", return_value=mock_sns_client
+            ),
+        ):
+            response = lambda_handler(event, MockLambdaContext())
+
+        assert response["statusCode"] == 200
+        mock_sns_client.publish.assert_called_once()
+        published_message = json.loads(
+            mock_sns_client.publish.call_args.kwargs["Message"]
+        )
+        assert published_message["links"] == [
+            {
+                "url": "https://m.instagram.com/p/ABC123/",
+                "domain": "m.instagram.com",
+            }
+        ]
 
     @mock_secretsmanager
     @mock_sns
