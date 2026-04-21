@@ -142,6 +142,14 @@ class TestAsyncUnfurlHandler:
                 "url": "https://www.instagram.com/reel/XYZ789/",
                 "domain": "instagram.com",
             },
+            {
+                "url": "https://m.instagram.com/tv/DEF456/",
+                "domain": "example.com",
+            },
+            {
+                "url": "https://evil.com/p/MALICIOUS/",
+                "domain": "instagram.com",
+            },
             {"url": "https://example.com/test", "domain": "example.com"},
             {"url": "https://www.instagram.com/profile/", "domain": "instagram.com"},
         ]
@@ -157,6 +165,10 @@ class TestAsyncUnfurlHandler:
             {
                 "original_url": "https://www.instagram.com/reel/XYZ789/",
                 "canonical_url": "https://www.instagram.com/reel/XYZ789",
+            },
+            {
+                "original_url": "https://m.instagram.com/tv/DEF456/",
+                "canonical_url": "https://www.instagram.com/tv/DEF456",
             },
         ]
         assert result == expected

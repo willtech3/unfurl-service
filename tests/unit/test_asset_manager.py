@@ -57,7 +57,7 @@ async def test_upload_success(
     http_client: AsyncMock,
     to_thread_mock: AsyncMock,
 ) -> None:
-    request = httpx.Request("GET", "https://example.com/image.png")
+    request = httpx.Request("GET", "https://scontent.cdninstagram.com/image.png")
     response = httpx.Response(
         200,
         headers={"Content-Type": "image/png"},
@@ -86,7 +86,7 @@ async def test_upload_success(
 async def test_download_failure(
     asset_manager: AssetManager, s3_client: MagicMock, http_client: AsyncMock
 ) -> None:
-    request = httpx.Request("GET", "https://example.com/missing.jpg")
+    request = httpx.Request("GET", "https://scontent.cdninstagram.com/missing.jpg")
     http_client.get.side_effect = httpx.HTTPStatusError(
         "not found", request=request, response=httpx.Response(404, request=request)
     )
@@ -104,7 +104,7 @@ async def test_s3_upload_failure(
     http_client: AsyncMock,
     to_thread_mock: AsyncMock,
 ) -> None:
-    request = httpx.Request("GET", "https://example.com/image.jpg")
+    request = httpx.Request("GET", "https://scontent.cdninstagram.com/image.jpg")
     http_client.get.return_value = httpx.Response(
         200,
         headers={"Content-Type": "image/jpeg"},
@@ -120,3 +120,34 @@ async def test_s3_upload_failure(
     assert result is None
     s3_client.put_object.assert_called_once()
     to_thread_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_rejects_disallowed_asset_origin(
+    asset_manager: AssetManager, s3_client: MagicMock, http_client: AsyncMock
+) -> None:
+    result = await asset_manager.upload_image(
+        "https://example.com/image.jpg", "post123"
+    )
+
+    assert result is None
+    http_client.get.assert_not_called()
+    s3_client.put_object.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rejects_non_image_content_type(
+    asset_manager: AssetManager, s3_client: MagicMock, http_client: AsyncMock
+) -> None:
+    request = httpx.Request("GET", "https://scontent.cdninstagram.com/asset")
+    http_client.get.return_value = httpx.Response(
+        200,
+        headers={"Content-Type": "text/html"},
+        content=b"<html></html>",
+        request=request,
+    )
+
+    result = await asset_manager.upload_image(str(request.url), "post123")
+
+    assert result is None
+    s3_client.put_object.assert_not_called()

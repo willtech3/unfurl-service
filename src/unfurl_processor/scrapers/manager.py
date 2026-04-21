@@ -12,6 +12,7 @@ from aws_lambda_powertools import Logger
 from observability import metrics as m
 
 from ..merge_utils import merge_instagram_results
+from ..url_utils import validate_instagram_url
 from .base import BaseScraper, ScrapingResult
 from .http_scraper import HttpScraper
 from .playwright_scraper import PlaywrightScraper
@@ -78,6 +79,15 @@ class ScraperManager:
         start_time = time.time()
         errors = []
         results = []
+
+        if not validate_instagram_url(url):
+            return ScrapingResult(
+                success=False,
+                error="Invalid Instagram URL",
+                method="manager_validation",
+                response_time_ms=self.measure_time(start_time),
+                data={"url": url},
+            )
 
         self.logger.info(f"🔍 Starting intelligent scraping for: {url}")
 

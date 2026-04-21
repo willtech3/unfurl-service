@@ -36,6 +36,7 @@ from .url_utils import (
     canonicalize_instagram_url,
     extract_instagram_id,
     get_cache_key,
+    validate_instagram_url,
 )
 
 # Type aliases for better readability
@@ -312,17 +313,23 @@ class AsyncUnfurlHandler:
     ) -> List[Dict[str, str]]:
         """Extract and validate Instagram links from Slack event."""
         instagram_links = []
+        seen_urls = set()
         for link in links:
-            url = link.get("url", "")
-            domain = link.get("domain", "")
+            if not isinstance(link, dict):
+                continue
 
-            if domain == "instagram.com" and any(
-                pattern in url for pattern in ["/p/", "/reel/", "/tv/"]
-            ):
-                canonical_url = self._canonicalize_instagram_url(url)
-                instagram_links.append(
-                    {"original_url": url, "canonical_url": canonical_url}
-                )
+            url = link.get("url", "")
+            if not validate_instagram_url(url):
+                continue
+
+            canonical_url = self._canonicalize_instagram_url(url)
+            if canonical_url in seen_urls:
+                continue
+
+            seen_urls.add(canonical_url)
+            instagram_links.append(
+                {"original_url": url, "canonical_url": canonical_url}
+            )
 
         return instagram_links
 

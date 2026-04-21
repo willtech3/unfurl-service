@@ -14,6 +14,13 @@ class SlackFormatter:
     def __init__(self):
         self.logger = logger
 
+    def _escape_mrkdwn_text(self, value: str) -> str:
+        """Escape user-controlled text before inserting it into mrkdwn fields."""
+        if not value:
+            return ""
+
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
     def format_unfurl_data(
         self, data: Optional[Dict[str, Any]]
     ) -> Optional[Dict[str, Any]]:
@@ -109,6 +116,7 @@ class SlackFormatter:
             caption = data.get("caption") or ""
             clean_caption = self._extract_clean_caption(caption)
             if clean_caption:
+                clean_caption = self._escape_mrkdwn_text(clean_caption)
                 blocks.append(
                     {
                         "type": "section",
@@ -160,19 +168,18 @@ class SlackFormatter:
             host = urllib.parse.urlparse(url).netloc.lower()
         except Exception:
             return False
-        allowed_hosts = (
-            "scontent.cdninstagram.com",
-            "video.cdninstagram.com",
-            "scontent-lga3-1.cdninstagram.com",
-            "video.xx.fbcdn.net",
+        allowed_host_suffixes = (
+            "cdninstagram.com",
+            "fbcdn.net",
             "instagram.fcdn.us",
         )
         return any(
-            host == h or host.endswith("." + h.split(".", 1)[-1]) for h in allowed_hosts
+            host == suffix or host.endswith("." + suffix)
+            for suffix in allowed_host_suffixes
         )
 
     def _build_header_text(self, data: Dict[str, Any]) -> str:
-        username = data.get("username") or "Instagram User"
+        username = self._escape_mrkdwn_text(data.get("username") or "Instagram User")
         is_verified = data.get("is_verified", False)
         username_text = f"*{username}*"
         if is_verified:
@@ -221,7 +228,7 @@ class SlackFormatter:
         """Format image/photo content with rich, Instagram-like layout using
         Block Kit."""
         # Extract metadata
-        username = data.get("username") or "Instagram User"
+        username = self._escape_mrkdwn_text(data.get("username") or "Instagram User")
         caption = data.get("caption") or ""
         likes = data.get("likes")
         comments = data.get("comments")
@@ -301,6 +308,7 @@ class SlackFormatter:
         # Caption (if available) - parse and clean the caption
         clean_caption = self._extract_clean_caption(caption)
         if clean_caption:
+            clean_caption = self._escape_mrkdwn_text(clean_caption)
             display_caption = (
                 clean_caption[:200] + "..."
                 if len(clean_caption) > 200
@@ -366,7 +374,7 @@ class SlackFormatter:
     ) -> Dict[str, Any]:
         """Create basic unfurl for fallback scenarios."""
         # Normalise potential None values to safe defaults
-        username = username or "Instagram User"
+        username = self._escape_mrkdwn_text(username or "Instagram User")
         caption = caption or ""
 
         # Get appropriate indicator and label for content type
@@ -378,7 +386,8 @@ class SlackFormatter:
         # Clean caption if available
         clean_caption = self._extract_clean_caption(caption)
         if clean_caption:
-            description = f'"{clean_caption[:150]}..."'
+            safe_caption = self._escape_mrkdwn_text(clean_caption)
+            description = f'"{safe_caption[:150]}..."'
         else:
             description = f"Instagram {content_label.lower()} content"
 
@@ -424,6 +433,8 @@ class SlackFormatter:
             data.get("description")
             or f"Instagram {content_label.lower()} content available"
         )
+        title = self._escape_mrkdwn_text(title)
+        description = self._escape_mrkdwn_text(description)
 
         return {
             "color": "#E4405F",
@@ -538,6 +549,7 @@ class SlackFormatter:
             is_fallback = data.get("is_fallback", False)
 
             blocks = []
+            username = self._escape_mrkdwn_text(username)
 
             # Header block
             header_text = (
@@ -569,6 +581,7 @@ class SlackFormatter:
 
             # Caption block
             if caption and not is_fallback:
+                caption = self._escape_mrkdwn_text(caption)
                 display_caption = (
                     caption[:500] + "..." if len(caption) > 500 else caption
                 )

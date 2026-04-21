@@ -22,6 +22,7 @@ from opentelemetry.propagate import inject
 
 from observability import metrics as m
 from observability.logging import setup_logfire
+from unfurl_processor.url_utils import validate_instagram_url
 
 # Configure Logfire and bridge stdlib logging (with console output)
 setup_logfire(enable_console_output=True)
@@ -30,6 +31,7 @@ metrics = None  # consolidated metrics in Logfire
 
 # Default AWS region to use when creating clients (helps unit tests)
 DEFAULT_AWS_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
+EXPECTED_SLACK_SIGNATURE_LENGTH = 67
 
 
 def get_sns_client() -> BaseClient:
@@ -46,6 +48,23 @@ def verify_slack_signature(
     body: str, timestamp: str, signature: str, signing_secret: str
 ) -> bool:
     """Verify the Slack request signature."""
+    if not signature or not signing_secret:
+        logfire.warning("Missing Slack signature or signing secret")
+        return False
+
+    if (
+        not signature.startswith("v0=")
+        or len(signature) != EXPECTED_SLACK_SIGNATURE_LENGTH
+    ):
+        logfire.warning("Malformed Slack signature")
+        return False
+
+    try:
+        int(signature[3:], 16)
+    except ValueError:
+        logfire.warning("Malformed Slack signature")
+        return False
+
     # Check timestamp to prevent replay attacks
     try:
         request_timestamp = float(timestamp)
@@ -122,26 +141,36 @@ def _get_header(event: Dict[str, Any], name: str) -> str:
     return ""
 
 
+def _parse_body_dict(body_str: str) -> Dict[str, Any]:
+    if not body_str:
+        return {}
+
+    try:
+        body = json.loads(body_str)
+    except json.JSONDecodeError:
+        return {}
+
+    return body if isinstance(body, dict) else {}
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda handler for Slack event routing."""
-    logfire.info("Received event", event=event)
+    body_str = _get_body_str(event)
+    body = _parse_body_dict(body_str)
+    event_data = body.get("event", {})
+    event_type = event_data.get("type") if isinstance(event_data, dict) else None
+    link_count = len(event_data.get("links", [])) if isinstance(event_data, dict) else 0
 
-    # Check if this is a URL verification challenge
-    body_str = _get_body_str(event) or "{}"
+    logfire.info(
+        "Received Slack request",
+        request_id=getattr(context, "aws_request_id", None),
+        body_type=body.get("type"),
+        event_type=event_type,
+        link_count=link_count,
+        is_base64_encoded=bool(event.get("isBase64Encoded")),
+    )
+
     try:
-        body = json.loads(body_str) if body_str else {}
-    except json.JSONDecodeError:
-        body = {}
-
-    if body.get("type") == "url_verification":
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"challenge": body.get("challenge")}),
-        }
-
-    # Handle regular Slack events
-    try:
-        # Parse the request body
         # Get Slack signature headers
         slack_signature = _get_header(event, "X-Slack-Signature")
         slack_timestamp = _get_header(event, "X-Slack-Request-Timestamp")
@@ -155,6 +184,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ):
             logfire.warning("Invalid Slack signature")
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
+
+        if body.get("type") == "url_verification":
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"challenge": body.get("challenge")}),
+            }
 
         # Process the event
         event_data = body.get("event", {})
@@ -173,7 +208,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if channel_id == "COMPOSER":
                 logfire.info(
                     "Ignoring COMPOSER link_shared event",
-                    links=event_data.get("links", []),
+                    link_count=len(event_data.get("links", [])),
                 )
 
                 # metrics consolidated in Logfire; no CloudWatch EMF emission
@@ -188,12 +223,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             instagram_links = [
                 {
                     **link,
-                    "url": html.unescape(
-                        link.get("url", "")
-                    ),  # Decode HTML entities like &amp; -> &
+                    "url": decoded_url,
                 }
                 for link in links
-                if link.get("domain") in ["instagram.com", "www.instagram.com"]
+                if isinstance(link, dict)
+                and (
+                    decoded_url := html.unescape(
+                        link.get("url", "")
+                    )  # Decode HTML entities like &amp; -> &
+                )
+                and validate_instagram_url(decoded_url)
             ]
 
             if instagram_links:
@@ -235,7 +274,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
                 logfire.info(
                     "Published Instagram links to SNS",
-                    links=instagram_links,
+                    link_count=len(instagram_links),
                     channel=event_data.get("channel"),
                 )
 

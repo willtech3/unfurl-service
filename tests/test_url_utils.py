@@ -76,6 +76,12 @@ class TestCanonicalizeInstagramUrl:
         expected = "https://www.instagram.com/p/ABC123"
         assert canonicalize_instagram_url(url) == expected
 
+    def test_canonicalize_normalizes_instagram_subdomain(self):
+        """Instagram subdomains should normalize to the canonical host."""
+        url = "https://m.instagram.com/p/ABC123/"
+        expected = "https://www.instagram.com/p/ABC123"
+        assert canonicalize_instagram_url(url) == expected
+
     def test_canonicalize_preserves_path(self):
         """Test preservation of path structure."""
         url = "https://www.instagram.com/reel/XYZ456/"
@@ -101,6 +107,7 @@ class TestValidateInstagramUrl:
         """Test validation of post URL."""
         assert validate_instagram_url("https://www.instagram.com/p/ABC123/")
         assert validate_instagram_url("https://instagram.com/p/ABC123")
+        assert validate_instagram_url("https://m.instagram.com/p/ABC123/")
 
     def test_validate_reel_url(self):
         """Test validation of reel URL."""
@@ -114,6 +121,11 @@ class TestValidateInstagramUrl:
         """Test rejection of non-Instagram domains."""
         assert not validate_instagram_url("https://facebook.com/p/ABC123/")
         assert not validate_instagram_url("https://example.com/p/ABC123/")
+
+    def test_validate_rejects_non_https_and_extra_segments(self):
+        """Only direct HTTPS media URLs should be accepted."""
+        assert not validate_instagram_url("http://www.instagram.com/p/ABC123/")
+        assert not validate_instagram_url("https://www.instagram.com/p/ABC123/embed/")
 
     def test_validate_profile_url(self):
         """Test rejection of profile URLs."""
