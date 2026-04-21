@@ -51,9 +51,7 @@ def test_assets_bucket_configuration(template: Template) -> None:
             }
         ]
     }
-    # Phased migration: bucket stays publicly-readable until the 30-day
-    # lifecycle clears objects referenced by pre-CloudFront Slack messages.
-    # A follow-up change flips these to True and drops public_read_access.
+
     assert bucket.get("PublicAccessBlockConfiguration") == {
         "BlockPublicAcls": False,
         "BlockPublicPolicy": False,
