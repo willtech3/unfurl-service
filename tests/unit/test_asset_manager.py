@@ -12,7 +12,7 @@ from src.unfurl_processor.asset_manager import AssetManager
 def s3_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     client = MagicMock()
     monkeypatch.setenv("ASSETS_BUCKET_NAME", "test-bucket")
-    monkeypatch.setenv("AWS_REGION", "us-west-2")
+    monkeypatch.setenv("ASSETS_PUBLIC_BASE_URL", "https://d123.cloudfront.net")
     monkeypatch.setattr(
         "src.unfurl_processor.asset_manager.boto3.client",
         MagicMock(return_value=client),
@@ -71,7 +71,7 @@ async def test_upload_success(
     expected_hash = hashlib.sha256(str(request.url).encode()).hexdigest()[:12]
     expected_key = f"instagram/post123/{expected_hash}.png"
 
-    assert result == f"https://test-bucket.s3.us-west-2.amazonaws.com/{expected_key}"
+    assert result == f"https://d123.cloudfront.net/{expected_key}"
     s3_client.put_object.assert_called_once_with(
         Bucket="test-bucket",
         Key=expected_key,
@@ -151,3 +151,25 @@ async def test_rejects_non_image_content_type(
 
     assert result is None
     s3_client.put_object.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_skips_upload_when_public_base_url_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    http_client: AsyncMock,
+    to_thread_mock: AsyncMock,
+) -> None:
+    monkeypatch.setenv("ASSETS_BUCKET_NAME", "test-bucket")
+    monkeypatch.delenv("ASSETS_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.setattr(
+        "src.unfurl_processor.asset_manager.boto3.client",
+        MagicMock(return_value=MagicMock()),
+    )
+
+    manager = AssetManager(http_client=http_client)
+    result = await manager.upload_image(
+        "https://scontent.cdninstagram.com/image.jpg", "post123"
+    )
+
+    assert result is None
+    http_client.get.assert_not_called()

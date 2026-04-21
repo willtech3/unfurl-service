@@ -52,10 +52,10 @@ def test_assets_bucket_configuration(template: Template) -> None:
         ]
     }
     assert bucket.get("PublicAccessBlockConfiguration") == {
-        "BlockPublicAcls": False,
-        "BlockPublicPolicy": False,
-        "IgnorePublicAcls": False,
-        "RestrictPublicBuckets": False,
+        "BlockPublicAcls": True,
+        "BlockPublicPolicy": True,
+        "IgnorePublicAcls": True,
+        "RestrictPublicBuckets": True,
     }
 
 
@@ -65,8 +65,53 @@ def match(template_and_match):
     return match
 
 
-def test_assets_bucket_is_public(template: Template, match: Match) -> None:
-    template.resource_count_is("AWS::S3::BucketPolicy", 1)
+def test_assets_bucket_is_private(template: Template, match: Match) -> None:
+    """Bucket policy grants access only to CloudFront via OAC, never to `*`."""
+    policies = template.find_resources("AWS::S3::BucketPolicy")
+    for policy in policies.values():
+        statements = policy["Properties"]["PolicyDocument"]["Statement"]
+        for statement in statements:
+            principal = statement.get("Principal", {})
+            if principal.get("AWS") == "*":
+                raise AssertionError(
+                    "Assets bucket policy must not grant access to Principal AWS:*"
+                )
+
+
+def test_cloudfront_distribution_uses_oac(template: Template, match: Match) -> None:
+    template.resource_count_is("AWS::CloudFront::Distribution", 1)
+    template.resource_count_is("AWS::CloudFront::OriginAccessControl", 1)
+    template.has_resource_properties(
+        "AWS::CloudFront::OriginAccessControl",
+        {
+            "OriginAccessControlConfig": match.object_like(
+                {
+                    "OriginAccessControlOriginType": "s3",
+                    "SigningBehavior": "always",
+                    "SigningProtocol": "sigv4",
+                }
+            )
+        },
+    )
+    template.has_resource_properties(
+        "AWS::CloudFront::Distribution",
+        {
+            "DistributionConfig": match.object_like(
+                {
+                    "Enabled": True,
+                    "DefaultCacheBehavior": match.object_like(
+                        {"ViewerProtocolPolicy": "redirect-to-https"}
+                    ),
+                }
+            )
+        },
+    )
+
+
+def test_assets_bucket_policy_grants_cloudfront(
+    template: Template, match: Match
+) -> None:
+    """The only bucket-policy statement should allow CloudFront service principal."""
     template.has_resource_properties(
         "AWS::S3::BucketPolicy",
         {
@@ -78,7 +123,9 @@ def test_assets_bucket_is_public(template: Template, match: Match) -> None:
                                 {
                                     "Action": "s3:GetObject",
                                     "Effect": "Allow",
-                                    "Principal": {"AWS": "*"},
+                                    "Principal": {
+                                        "Service": "cloudfront.amazonaws.com"
+                                    },
                                 }
                             )
                         ]
@@ -100,3 +147,13 @@ def test_unfurl_processor_env_includes_assets_bucket(template: Template) -> None
     function_props = next(iter(functions.values()))["Properties"]
     variables = function_props.get("Environment", {}).get("Variables", {})
     assert variables.get("ASSETS_BUCKET_NAME") == {"Ref": bucket_id}
+
+    public_base_url = variables.get("ASSETS_PUBLIC_BASE_URL")
+    assert (
+        public_base_url is not None
+    ), "Expected ASSETS_PUBLIC_BASE_URL env var on unfurl processor"
+    # CDK builds the URL via Fn::Join referencing the distribution's domain name.
+    assert isinstance(public_base_url, dict) and "Fn::Join" in public_base_url, (
+        f"Expected ASSETS_PUBLIC_BASE_URL to reference the CloudFront domain, "
+        f"got {public_base_url!r}"
+    )
