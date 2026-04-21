@@ -75,9 +75,6 @@ class UnfurlServiceStack(Stack):
             ],
         )
 
-        # CloudFront distribution provides the permanent public URL that Slack's
-        # image proxy can revalidate against. Bucket stays private; OAC signs
-        # CloudFront-to-S3 requests with SigV4.
         assets_distribution = cloudfront.Distribution(
             self,
             "UnfurlAssetsCDN",
