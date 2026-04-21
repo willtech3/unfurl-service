@@ -54,12 +54,26 @@ class UnfurlServiceStack(Stack):
             time_to_live_attribute="ttl",
         )
 
-        # S3 bucket for persisted assets — private, accessed only via CloudFront OAC
+        # S3 bucket for persisted assets.
+        # Phased migration: the bucket remains public-read so that Slack
+        # messages posted *before* this deploy keep resolving their direct-S3
+        # URLs until the 30-day lifecycle rule clears those objects. New
+        # writes are already addressed via the CloudFront distribution
+        # below (see ASSETS_PUBLIC_BASE_URL), so nothing new enters Slack
+        # with a direct-S3 URL. A follow-up change after the 30-day window
+        # will flip BlockPublicAccess to BLOCK_ALL and drop
+        # public_read_access, leaving CloudFront+OAC as the only access path.
         assets_bucket = s3.Bucket(
             self,
             "UnfurlAssets",
             bucket_name=f"unfurl-assets-{env_name}",
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            public_read_access=True,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=False,
+                block_public_policy=False,
+                ignore_public_acls=False,
+                restrict_public_buckets=False,
+            ),
             encryption=s3.BucketEncryption.S3_MANAGED,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,

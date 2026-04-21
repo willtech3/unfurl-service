@@ -51,11 +51,14 @@ def test_assets_bucket_configuration(template: Template) -> None:
             }
         ]
     }
+    # Phased migration: bucket stays publicly-readable until the 30-day
+    # lifecycle clears objects referenced by pre-CloudFront Slack messages.
+    # A follow-up change flips these to True and drops public_read_access.
     assert bucket.get("PublicAccessBlockConfiguration") == {
-        "BlockPublicAcls": True,
-        "BlockPublicPolicy": True,
-        "IgnorePublicAcls": True,
-        "RestrictPublicBuckets": True,
+        "BlockPublicAcls": False,
+        "BlockPublicPolicy": False,
+        "IgnorePublicAcls": False,
+        "RestrictPublicBuckets": False,
     }
 
 
@@ -65,17 +68,32 @@ def match(template_and_match):
     return match
 
 
-def test_assets_bucket_is_private(template: Template, match: Match) -> None:
-    """Bucket policy grants access only to CloudFront via OAC, never to `*`."""
-    policies = template.find_resources("AWS::S3::BucketPolicy")
-    for policy in policies.values():
-        statements = policy["Properties"]["PolicyDocument"]["Statement"]
-        for statement in statements:
-            principal = statement.get("Principal", {})
-            if principal.get("AWS") == "*":
-                raise AssertionError(
-                    "Assets bucket policy must not grant access to Principal AWS:*"
-                )
+def test_assets_bucket_is_public_during_migration(
+    template: Template, match: Match
+) -> None:
+    """During the phased migration the bucket still grants public read so old
+    direct-S3 URLs in existing Slack messages keep resolving. The follow-up
+    PR after the lifecycle window will remove this statement."""
+    template.has_resource_properties(
+        "AWS::S3::BucketPolicy",
+        {
+            "PolicyDocument": match.object_like(
+                {
+                    "Statement": match.array_with(
+                        [
+                            match.object_like(
+                                {
+                                    "Action": "s3:GetObject",
+                                    "Effect": "Allow",
+                                    "Principal": {"AWS": "*"},
+                                }
+                            )
+                        ]
+                    )
+                }
+            )
+        },
+    )
 
 
 def test_cloudfront_distribution_uses_oac(template: Template, match: Match) -> None:
@@ -111,7 +129,12 @@ def test_cloudfront_distribution_uses_oac(template: Template, match: Match) -> N
 def test_assets_bucket_policy_grants_cloudfront(
     template: Template, match: Match
 ) -> None:
-    """The only bucket-policy statement should allow CloudFront service principal."""
+    """Bucket policy must include a CloudFront service-principal grant (OAC).
+
+    During the phased migration this statement coexists with the public-read
+    statement from `public_read_access=True`; after lockdown only this grant
+    will remain.
+    """
     template.has_resource_properties(
         "AWS::S3::BucketPolicy",
         {
