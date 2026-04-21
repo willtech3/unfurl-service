@@ -30,7 +30,7 @@ class AssetManager:
     def __init__(self, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self.s3_client = boto3.client("s3")
         self.bucket_name = os.environ.get("ASSETS_BUCKET_NAME", "")
-        self.region = os.environ.get("AWS_REGION", "us-east-1")
+        self.public_base_url = os.environ.get("ASSETS_PUBLIC_BASE_URL", "").rstrip("/")
         self.http_client = http_client or httpx.AsyncClient()
 
     def _generate_key(self, post_id: str, url: str, content_type: str) -> str:
@@ -64,7 +64,7 @@ class AssetManager:
         )
 
     async def upload_image(self, url: str, post_id: str) -> Optional[str]:
-        if not self.bucket_name:
+        if not self.bucket_name or not self.public_base_url:
             return None
 
         try:
@@ -111,7 +111,7 @@ class AssetManager:
                 CacheControl="max-age=31536000",
             )
 
-            return f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"
+            return f"{self.public_base_url}/{key}"
         except httpx.HTTPError as exc:
             logger.warning("Failed to download asset from %s: %s", url, exc)
             return None

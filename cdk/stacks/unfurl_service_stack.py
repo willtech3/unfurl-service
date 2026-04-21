@@ -13,6 +13,8 @@ from aws_cdk import (
     aws_secretsmanager as sm,
     aws_sqs as sqs,
     aws_ecr_assets as ecr_assets,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as cloudfront_origins,
 )
 from constructs import Construct
 
@@ -52,7 +54,6 @@ class UnfurlServiceStack(Stack):
             time_to_live_attribute="ttl",
         )
 
-        # S3 bucket for persisted assets
         assets_bucket = s3.Bucket(
             self,
             "UnfurlAssets",
@@ -64,6 +65,7 @@ class UnfurlServiceStack(Stack):
                 ignore_public_acls=False,
                 restrict_public_buckets=False,
             ),
+            encryption=s3.BucketEncryption.S3_MANAGED,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
             lifecycle_rules=[
@@ -71,6 +73,26 @@ class UnfurlServiceStack(Stack):
                     expiration=Duration.days(30),
                 )
             ],
+        )
+
+        assets_distribution = cloudfront.Distribution(
+            self,
+            "UnfurlAssetsCDN",
+            comment=f"Unfurl assets CDN ({env_name})",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=cloudfront_origins.S3BucketOrigin.with_origin_access_control(
+                    assets_bucket
+                ),
+                viewer_protocol_policy=(
+                    cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+                ),
+                allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+                cached_methods=cloudfront.CachedMethods.CACHE_GET_HEAD,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                compress=True,
+            ),
+            price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+            enabled=True,
         )
 
         # SNS topic for async processing
@@ -228,6 +250,9 @@ class UnfurlServiceStack(Stack):
                 "PLAYWRIGHT_BROWSERS_PATH": "/var/task/playwright-browsers",
                 "PYTHONPATH": "/var/task:/var/runtime",
                 "ASSETS_BUCKET_NAME": assets_bucket.bucket_name,
+                "ASSETS_PUBLIC_BASE_URL": (
+                    f"https://{assets_distribution.distribution_domain_name}"
+                ),
             },
             timeout=Duration.minutes(5),  # Increased for Playwright browser startup
             memory_size=1024,  # Increased for browser automation
