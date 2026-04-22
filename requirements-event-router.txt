@@ -11,5 +11,8 @@ typing-extensions==4.7.0
 wrapt==1.16.0
 
 # Observability (Logfire)
+# Only pin logfire; let its [aws-lambda] extras resolve the opentelemetry-*
+# family in lockstep. Pinning opentelemetry-api separately forced pip to
+# backtrack to a very old opentelemetry-instrumentation-aws-lambda that
+# logfire 4.x cannot import, crashing Lambda init.
 logfire[aws-lambda]==4.1.0
-opentelemetry-api==1.22.0
