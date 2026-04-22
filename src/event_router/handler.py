@@ -24,8 +24,10 @@ from observability import metrics as m
 from observability.logging import setup_logfire
 from unfurl_processor.url_utils import validate_instagram_url
 
-# Configure Logfire and bridge stdlib logging (with console output)
-setup_logfire(enable_console_output=True)
+try:
+    setup_logfire(enable_console_output=True)
+except Exception as _setup_err:  # pragma: no cover - defensive
+    print(f"setup_logfire failed; continuing without Logfire: {_setup_err}")
 
 metrics = None  # consolidated metrics in Logfire
 
@@ -291,5 +293,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
 
-# Wrap handler with Logfire's AWS Lambda instrumentation (in-place)
-logfire.instrument_aws_lambda(lambda_handler)
+try:
+    logfire.instrument_aws_lambda(lambda_handler)
+except Exception as _instr_err:  # pragma: no cover - defensive
+    # Observability must fail open: a broken instrumentation dep must not
+    # crash Lambda init and take the event router offline.
+    print(
+        "logfire.instrument_aws_lambda failed; continuing without it: " f"{_instr_err}"
+    )

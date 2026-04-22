@@ -33,8 +33,10 @@ from .handler_async import AsyncUnfurlHandler
 # Initialize observability tools
 logger = Logger()
 
-# Configure Logfire as the consolidated backend
-setup_logfire(enable_console_output=False)
+try:
+    setup_logfire(enable_console_output=False)
+except Exception as _setup_err:  # pragma: no cover - defensive
+    print(f"setup_logfire failed; continuing without Logfire: {_setup_err}")
 
 # Powertools metrics/tracer removed; using Logfire metrics and spans
 metrics_available = False
@@ -96,10 +98,16 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         }
 
 
-# Wrap handler with Logfire's AWS Lambda instrumentation (in-place)
-logfire.instrument_aws_lambda(
-    lambda_handler, event_context_extractor=extract_context_from_sns_event
-)
+try:
+    logfire.instrument_aws_lambda(
+        lambda_handler, event_context_extractor=extract_context_from_sns_event
+    )
+except Exception as _instr_err:  # pragma: no cover - defensive
+    # Observability must fail open: a broken instrumentation dep must not
+    # crash Lambda init and take the unfurl processor offline.
+    print(
+        "logfire.instrument_aws_lambda failed; continuing without it: " f"{_instr_err}"
+    )
 
 
 # No metrics decorator; metrics are handled by Logfire directly
