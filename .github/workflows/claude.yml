@@ -12,10 +12,12 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.actor == 'willtech3' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     
     runs-on: ubuntu-latest
     
@@ -23,8 +25,6 @@ jobs:
       contents: write      # Allow writing to repository
       pull-requests: write # Allow updating PRs
       issues: write        # Allow updating issues
-      id-token: write      # For AWS OIDC if needed
-      actions: write       # Allow workflow modifications
       checks: write        # Allow creating check runs
       statuses: write      # Allow setting commit statuses
     
@@ -45,13 +45,6 @@ jobs:
         with:
           node-version: '18'
           
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
-        
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -62,9 +55,9 @@ jobs:
           # Make scripts executable
           find . -name "*.sh" -type f -exec chmod +x {} \;
           
-          # Install common Python tools including AWS SDK
+          # Install common Python tools
           pip install --upgrade pip
-          pip install poetry pipenv black flake8 pytest boto3 awscli
+          pip install poetry pipenv black flake8 pytest
           
           # Create a workspace directory for Claude
           mkdir -p .claude-workspace
@@ -72,9 +65,6 @@ jobs:
           # Set up git config for commits
           git config --global user.name "Claude Code Bot"
           git config --global user.email "claude-bot@github-actions"
-          
-          # Verify AWS credentials are working
-          aws sts get-caller-identity
           
       - name: Install project dependencies
         run: |
@@ -103,17 +93,6 @@ jobs:
           # enable_file_operations: true
           # workspace_path: .claude-workspace
         env:
-          # Pass AWS credentials and configuration
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-          
-          # Pass additional AWS configuration if needed
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          
           # Pass environment variables Claude might need
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: ${{ github.workspace }}
