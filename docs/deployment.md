@@ -44,8 +44,10 @@ assume the role from the `main` branch:
 ```
 
 Attach the permissions required for CDK deployment in this account. The GitHub
-Actions workflow uses short-lived OIDC credentials and does not require
-`AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`.
+Actions workflow prefers short-lived OIDC credentials. Until
+`AWS_DEPLOY_ROLE_ARN` is configured, it falls back to the existing main-only
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` secrets so deployments stay
+unblocked during the migration.
 
 ### 2. Store Slack Credentials
 
