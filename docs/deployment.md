@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- AWS CLI configured with credentials
+- AWS CLI configured with credentials for manual deployments
 - AWS CDK CLI (`npm install -g aws-cdk`)
 - Python 3.12+
 - Docker
@@ -10,13 +10,42 @@
 
 ## AWS Setup
 
-### 1. Configure GitHub Secrets
+### 1. Configure GitHub OIDC
 
-Add these to your GitHub repository (Settings -> Secrets -> Actions):
+Create or reuse an AWS IAM role that trusts GitHub Actions for this repository,
+then add its ARN to your GitHub repository (Settings -> Secrets and variables ->
+Actions -> Secrets):
 
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
+- `AWS_DEPLOY_ROLE_ARN`
 - `LOGFIRE_TOKEN` (optional, for observability)
+
+The role trust policy should allow the `willtech3/unfurl-service` repository to
+assume the role from the `main` branch:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:willtech3/unfurl-service:ref:refs/heads/main"
+        }
+      }
+    }
+  ]
+}
+```
+
+Attach the permissions required for CDK deployment in this account. The GitHub
+Actions workflow uses short-lived OIDC credentials and does not require
+`AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY`.
 
 ### 2. Store Slack Credentials
 
@@ -44,7 +73,9 @@ cdk bootstrap aws://ACCOUNT_ID/us-east-2
 
 ### Automated (Recommended)
 
-Push to `main` branch. GitHub Actions will:
+Push to the `main` branch or run the deploy workflow manually from the `main`
+ref. GitHub Actions will:
+
 1. Run tests
 2. Build container
 3. Deploy via CDK
