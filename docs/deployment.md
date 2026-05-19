@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - AWS CLI configured with credentials for manual deployments
-- AWS CDK CLI (`npm install -g aws-cdk`)
+- Node.js 24 LTS (`nvm use` reads `.nvmrc`)
+- AWS CDK CLI dependencies (`npm ci --prefix cdk`)
 - Python 3.12+
 - Docker
 - Slack workspace admin access
@@ -69,7 +70,9 @@ Get these values from your Slack app's Basic Information and OAuth pages.
 ### 3. Bootstrap CDK (first time only)
 
 ```bash
-cdk bootstrap aws://ACCOUNT_ID/us-east-2
+nvm use
+npm ci --prefix cdk
+./cdk/node_modules/.bin/cdk bootstrap aws://ACCOUNT_ID/us-east-2
 ```
 
 ## Deployment
@@ -87,7 +90,9 @@ ref. GitHub Actions will:
 
 ```bash
 # Deploy all stacks
-cdk deploy --all --require-approval never
+nvm use
+npm ci --prefix cdk
+./cdk/node_modules/.bin/cdk deploy --all --require-approval never
 ```
 
 ## Slack App Setup

@@ -29,6 +29,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: cdk/package-lock.json
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -90,7 +97,7 @@ jobs:
           uv pip install -e ".[cdk]"
 
       - name: Install AWS CDK
-        run: npm install -g aws-cdk
+        run: npm ci --prefix cdk
 
       # Use short-lived GitHub OIDC credentials; do not fall back to long-lived
       # AWS access keys.
@@ -146,7 +153,7 @@ jobs:
           
           # Deploy the stack with parameter override to fix bootstrap version reference
           CDK_DEFAULT_ACCOUNT=$AWS_ACCOUNT CDK_DEFAULT_REGION=${{ env.AWS_REGION }} \
-          cdk deploy --all --require-approval never \
+          ./cdk/node_modules/.bin/cdk deploy --all --require-approval never \
             --context "env=${{ env.AWS_REGION }}" \
             --context "account=$AWS_ACCOUNT" \
             --context "region=${{ env.AWS_REGION }}" \

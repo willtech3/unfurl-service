@@ -43,7 +43,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version-file: .nvmrc
           
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -77,9 +77,9 @@ jobs:
             pipenv install
           fi
           
-          # Node dependencies
-          if [ -f "package.json" ]; then
-            npm ci || npm install
+          # CDK CLI dependencies
+          if [ -f "cdk/package-lock.json" ]; then
+            npm ci --prefix cdk
           fi
         continue-on-error: true
         

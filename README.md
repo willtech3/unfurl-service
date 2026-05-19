@@ -18,10 +18,11 @@ API Gateway -> Event Router Lambda (ZIP) -> SNS -> Unfurl Processor Lambda (Cont
 ## Prerequisites
 
 - Python 3.12+
+- Node.js 24 LTS (`nvm use` reads `.nvmrc`)
 - [uv](https://github.com/astral-sh/uv) package manager
 - Docker
 - AWS CLI configured
-- AWS CDK CLI (`npm install -g aws-cdk`)
+- AWS CDK CLI dependencies (`npm ci --prefix cdk`)
 
 ## Project Structure
 
@@ -51,9 +52,11 @@ unfurl-service/
 
 ```bash
 # Install dependencies
+nvm use
 uv venv
 source .venv/bin/activate
 uv pip install -e ".[dev,cdk]"
+npm ci --prefix cdk
 
 # Install Playwright browsers (for local testing)
 python -m playwright install chromium
