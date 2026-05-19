@@ -6,7 +6,7 @@
 # =====================================================
 # Using the official Playwright image ensures compatibility and includes all
 # necessary system dependencies (apt-get, etc.) for browser installation
-FROM --platform=linux/arm64 mcr.microsoft.com/playwright/python:v1.45.0-jammy as builder
+FROM --platform=linux/arm64 mcr.microsoft.com/playwright/python:v1.60.0-noble AS builder
 
 # Set environment variables for build stage
 ENV PYTHONUNBUFFERED=1
@@ -14,7 +14,7 @@ ENV DOCKER_BUILDKIT=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Install build dependencies for native extensions
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
@@ -59,7 +59,7 @@ ENV PYTHONPATH=/var/task
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
 # Install system dependencies needed for Playwright
-RUN dnf update -y && \
+RUN dnf upgrade -y && \
     dnf install -y \
         # Basic utilities
         wget \
@@ -75,15 +75,21 @@ RUN dnf update -y && \
         libXrandr \
         mesa-libgbm \
         alsa-lib && \
+    dnf upgrade -y && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
 # Copy installed Python packages from build stage
 COPY --from=builder /app ${LAMBDA_TASK_ROOT}
 
-# Fix greenlet for ARM64 Lambda runtime - reinstall with proper architecture
-RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} --upgrade greenlet && \
-    echo "✅ Greenlet reinstalled for ARM64 compatibility"
+# Fix greenlet for ARM64 Lambda runtime and keep vulnerable base Python
+# libraries shadowed by patched packages in the Lambda task root.
+RUN pip install --no-cache-dir --target ${LAMBDA_TASK_ROOT} --upgrade \
+        greenlet==3.5.0 \
+        urllib3==2.7.0 && \
+    rm -rf /var/lang/lib/python3.12/site-packages/urllib3 \
+        /var/lang/lib/python3.12/site-packages/urllib3-*.dist-info && \
+    echo "✅ Runtime Python compatibility packages refreshed"
 
 # Copy Playwright browsers from build stage to Lambda task root
 # The browsers were installed in the build stage using the official Playwright image

@@ -5,8 +5,8 @@ description = "Instagram link unfurl service for Slack"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "requests>=2.31.0",
-    "httpx[http2]>=0.24.1",
+    "requests>=2.34.2",
+    "httpx[http2]>=0.28.1",
     "beautifulsoup4>=4.12.2",
     "aws-lambda-powertools[parser]>=2.31.0",
     "boto3>=1.34.0",
@@ -16,11 +16,11 @@ dependencies = [
     "typing-extensions>=4.7.0",
     "wrapt>=1.16.0",
     "annotated-types>=0.5.0",
-    "orjson>=3.10.12",
+    "orjson>=3.11.9",
     "python-dotenv>=0.21.0",
     "cachetools>=5.5.0",
     "python-dateutil>=2.8.2",
-    "aiohttp>=3.12.6",  # Required by slack-sdk AsyncWebClient
+    "aiohttp>=3.13.5",  # Required by slack-sdk AsyncWebClient
     "logfire[aws-lambda]==4.1.0",
     "opentelemetry-api>=1.22.0",
 ]
