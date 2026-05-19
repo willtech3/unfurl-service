@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 REQUIRED_PYTHON_VERSION="3.12.3"
+REQUIRED_NODE_MAJOR="24"
 PROJECT_DIR="$(pwd)"
 VENV_DIR=".venv"
 
@@ -42,6 +43,37 @@ print_info() {
 # Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Check Node.js and install local CDK CLI dependencies
+setup_node() {
+    print_header "Checking Node.js $REQUIRED_NODE_MAJOR"
+
+    if ! command_exists node; then
+        print_error "Node.js not found"
+        print_info "Install Node.js $REQUIRED_NODE_MAJOR.x LTS, then run: nvm use"
+        return 1
+    fi
+
+    node_version="$(node --version)"
+    node_major="${node_version#v}"
+    node_major="${node_major%%.*}"
+
+    if [[ "$node_major" != "$REQUIRED_NODE_MAJOR" ]]; then
+        print_error "Expected Node.js $REQUIRED_NODE_MAJOR.x, got $node_version"
+        print_info "Run: nvm install && nvm use"
+        return 1
+    fi
+
+    if ! command_exists npm; then
+        print_error "npm not found"
+        return 1
+    fi
+
+    print_success "Node.js version verified: $node_version"
+    print_info "Installing local AWS CDK CLI dependencies..."
+    npm ci --prefix cdk
+    print_success "AWS CDK CLI dependencies installed"
 }
 
 # Check if pyenv is installed and install if needed
@@ -198,9 +230,6 @@ POWERTOOLS_SERVICE_NAME=instagram-unfurl
 # Development Configuration
 NODE_ENV=development
 DISABLE_METRICS=true
-
-# Optional: Silence Node.js version warnings
-JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1
 EOF
         print_success "Created .env file"
     else
@@ -265,6 +294,7 @@ main() {
     # Run setup steps
     setup_python
     setup_uv
+    setup_node
     setup_dependencies
     setup_environment_vars
     verify_setup

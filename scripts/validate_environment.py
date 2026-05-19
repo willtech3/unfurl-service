@@ -13,6 +13,9 @@ import json
 from pathlib import Path
 from typing import List, Tuple
 
+REQUIRED_NODE_MAJOR = 24
+LOCAL_CDK_BIN = Path("cdk/node_modules/.bin/cdk")
+
 
 # Color codes for output
 class Colors:
@@ -148,14 +151,22 @@ def check_cdk() -> bool:
     """Check AWS CDK installation."""
     print("\n🏗️  Checking AWS CDK...")
 
-    exit_code, stdout, _ = run_command(["cdk", "--version"])
+    cdk_command = [str(LOCAL_CDK_BIN)] if LOCAL_CDK_BIN.exists() else ["cdk"]
+    exit_code, stdout, _ = run_command(cdk_command)
     if exit_code != 0:
         print_error("AWS CDK not installed")
-        print_info("Install: npm install -g aws-cdk")
+        print_info("Install: npm ci --prefix cdk")
         return False
 
     print_success(f"CDK: {stdout.strip()}")
     return True
+
+
+def parse_node_major(version_output: str) -> int | None:
+    """Parse Node's v-prefixed semantic version output."""
+    version = version_output.strip().lstrip("v")
+    major = version.split(".", 1)[0]
+    return int(major) if major.isdigit() else None
 
 
 def check_node_npm() -> bool:
@@ -167,7 +178,14 @@ def check_node_npm() -> bool:
     if exit_code != 0:
         print_error("Node.js not installed")
         return False
-    print_success(f"Node.js: {stdout.strip()}")
+
+    node_version = stdout.strip()
+    node_major = parse_node_major(node_version)
+    if node_major != REQUIRED_NODE_MAJOR:
+        print_error(f"Node.js: {node_version} - Required: {REQUIRED_NODE_MAJOR}.x LTS")
+        print_info("Install or switch versions with: nvm install && nvm use")
+        return False
+    print_success(f"Node.js: {node_version}")
 
     # Check npm
     exit_code, stdout, _ = run_command(["npm", "--version"])
@@ -247,6 +265,8 @@ def check_project_structure() -> bool:
         "Dockerfile",
         "requirements-docker.txt",
         "pyproject.toml",
+        ".nvmrc",
+        "cdk/package-lock.json",
         "src/unfurl_processor/handler_async.py",
         "src/unfurl_processor/entrypoint.py",
         "src/unfurl_processor/scrapers/__init__.py",

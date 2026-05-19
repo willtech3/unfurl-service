@@ -58,14 +58,17 @@ clean:
 
 deploy:
 	@echo "Deploying to AWS..."
-	cdk bootstrap
-	cdk deploy --all --require-approval never
+	npm ci --prefix cdk
+	./cdk/node_modules/.bin/cdk bootstrap
+	./cdk/node_modules/.bin/cdk deploy --all --require-approval never
 
 synth:
-	cdk synth
+	npm ci --prefix cdk
+	./cdk/node_modules/.bin/cdk synth
 
 diff:
-	cdk diff
+	npm ci --prefix cdk
+	./cdk/node_modules/.bin/cdk diff
 
 lock:
 	uv pip compile pyproject.toml -o requirements.txt
