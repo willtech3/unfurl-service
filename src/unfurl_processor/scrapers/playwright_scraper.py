@@ -116,6 +116,7 @@ class PlaywrightScraper(BaseScraper):
         super().__init__("playwright")
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
+        self._playwright_driver = None
         self.initialization_lock = asyncio.Lock()
         self.is_initialized = False
 
@@ -199,7 +200,7 @@ class PlaywrightScraper(BaseScraper):
                         self.logger.warning(f"No Chromium found in {browsers_path}")
 
                 # Launch Playwright
-                playwright = await async_playwright().start()
+                self._playwright_driver = await async_playwright().start()
 
                 # Browser launch options optimized for Lambda
                 launch_options = {
@@ -227,7 +228,9 @@ class PlaywrightScraper(BaseScraper):
                 if browser_executable:
                     launch_options["executable_path"] = browser_executable
 
-                self.browser = await playwright.chromium.launch(**launch_options)
+                self.browser = await self._playwright_driver.chromium.launch(
+                    **launch_options
+                )
 
                 # Create persistent context with mobile emulation
                 self.context = await self.browser.new_context(
@@ -774,21 +777,12 @@ class PlaywrightScraper(BaseScraper):
                 await self.browser.close()
                 self.browser = None
 
+            if self._playwright_driver:
+                await self._playwright_driver.stop()
+                self._playwright_driver = None
+
             self.is_initialized = False
-            self.logger.info("✅ Playwright browser cleaned up")
+            self.logger.info("Playwright browser cleaned up")
 
         except Exception as e:
             self.logger.warning(f"Error during Playwright cleanup: {e}")
-
-    def __del__(self):
-        """Ensure cleanup on destruction."""
-        if self.is_initialized:
-            try:
-                # Create event loop if none exists for cleanup
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.cleanup())
-                else:
-                    loop.run_until_complete(self.cleanup())
-            except Exception:
-                pass  # Best effort cleanup

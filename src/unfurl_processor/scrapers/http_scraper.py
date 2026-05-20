@@ -1,10 +1,11 @@
 """HTTP-based Instagram scraper with enhanced bot evasion."""
 
+import asyncio
 import random
 import time
 from typing import Any, Dict, List, Optional
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, ScrapingResult
@@ -16,7 +17,6 @@ class HttpScraper(BaseScraper):
     def __init__(self, proxy_urls: Optional[List[str]] = None):
         super().__init__("http")
         self.proxy_urls = proxy_urls or []
-        self.session = None
         self.user_agents = [
             (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -42,7 +42,7 @@ class HttpScraper(BaseScraper):
         ]
 
     async def scrape(self, url: str) -> ScrapingResult:
-        """Scrape Instagram data using HTTP requests with enhanced bot evasion."""
+        """Scrape Instagram data using async HTTP requests with bot evasion."""
         start_time = time.time()
 
         if not self.validate_instagram_url(url):
@@ -54,9 +54,6 @@ class HttpScraper(BaseScraper):
             )
 
         try:
-            # Create session with enhanced headers
-            session = requests.Session()
-
             # Random user agent for each request
             user_agent = random.choice(self.user_agents)  # nosec B311
 
@@ -68,7 +65,7 @@ class HttpScraper(BaseScraper):
                     "image/avif,image/webp,image/apng,*/*;q=0.8"
                 ),
                 "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate",  # Exclude 'br' to avoid brotli
+                "Accept-Encoding": "gzip, deflate",
                 "DNT": "1",
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1",
@@ -85,42 +82,38 @@ class HttpScraper(BaseScraper):
                 "sec-ch-ua-platform": '"Windows"',
             }
 
-            session.headers.update(headers)
-
-            # Set proxy if available
-            proxies = {}
+            # Build client kwargs
+            client_kwargs: Dict[str, Any] = {
+                "headers": headers,
+                "follow_redirects": True,
+                "timeout": 15.0,
+            }
             if self.proxy_urls:
                 proxy_url = random.choice(self.proxy_urls)  # nosec B311
-                proxies = {"http": proxy_url, "https": proxy_url}
+                client_kwargs["proxy"] = proxy_url
                 self.logger.info(f"Using proxy: {proxy_url}")
 
-            # Multi-step navigation simulation
-            # Step 1: Visit Instagram homepage first
-            try:
-                session.get(
-                    "https://www.instagram.com/",
-                    proxies=proxies,
-                    timeout=10,
-                    allow_redirects=True,
-                )
+            async with httpx.AsyncClient(**client_kwargs) as client:
+                # Step 1: Visit Instagram homepage first
+                try:
+                    await client.get(
+                        "https://www.instagram.com/",
+                        timeout=10.0,
+                    )
+                    # Human-like delay
+                    await asyncio.sleep(random.uniform(0.5, 2.0))  # nosec B311
+                except Exception as e:
+                    self.logger.warning(f"Homepage visit failed: {e}")
 
-                # Human-like delay
-                time.sleep(random.uniform(0.5, 2.0))  # nosec B311
-
-            except Exception as e:
-                self.logger.warning(f"Homepage visit failed: {e}")
-
-            # Step 2: Navigate to target URL
-            response = session.get(
-                url, proxies=proxies, timeout=15, allow_redirects=True
-            )
-
-            response.raise_for_status()
+                # Step 2: Navigate to target URL
+                response = await client.get(url)
+                response.raise_for_status()
 
             # Log response details for debugging
             self.logger.info(f"Response status: {response.status_code}")
             self.logger.info(
-                f"Content encoding: {response.headers.get('content-encoding', 'none')}"
+                f"Content encoding: "
+                f"{response.headers.get('content-encoding', 'none')}"
             )
             self.logger.info(f"Response size: {len(response.content)}")
 
@@ -156,7 +149,7 @@ class HttpScraper(BaseScraper):
                     response_time_ms=self.measure_time(start_time),
                 )
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             error_msg = f"HTTP request failed: {str(e)}"
             self.logger.warning(error_msg)
             return ScrapingResult(
