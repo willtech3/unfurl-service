@@ -504,21 +504,6 @@ class TestAsyncUnfurlHandler:
         assert "No Instagram links found" in result["body"]
 
     @pytest.mark.asyncio
-    async def test_async_context_manager(self, handler):
-        """Test async context manager functionality."""
-        # Mock cleanup methods
-        handler.http_client = AsyncMock()
-        handler.scraper_manager = AsyncMock()
-
-        # Test context manager
-        async with handler as h:
-            assert h is handler
-
-        # Verify cleanup was called
-        handler.http_client.aclose.assert_called_once()
-        handler.scraper_manager.cleanup.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_concurrent_link_processing(self, handler):
         """Test concurrent processing of multiple Instagram links."""
         # This test verifies that multiple links are processed concurrently

@@ -187,6 +187,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logfire.warning("Invalid Slack signature")
             return {"statusCode": 401, "body": json.dumps({"error": "Unauthorized"})}
 
+        # Ignore Slack retries — the original request is already processing
+        retry_num = _get_header(event, "X-Slack-Retry-Num")
+        if retry_num:
+            logfire.info("Ignoring Slack retry", retry_num=retry_num)
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"ignored": "retry"}),
+            }
+
         if body.get("type") == "url_verification":
             return {
                 "statusCode": 200,

@@ -487,14 +487,3 @@ class ScraperManager:
             result.data["has_video"] = has_video
 
         return score
-
-    def __del__(self):
-        """Ensure cleanup on destruction."""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(self.cleanup())
-            else:
-                loop.run_until_complete(self.cleanup())
-        except Exception:
-            pass  # Best effort cleanup

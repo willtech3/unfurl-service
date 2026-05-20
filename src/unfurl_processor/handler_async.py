@@ -553,15 +553,3 @@ class AsyncUnfurlHandler:
         except Exception as e:
             self.logger.error(f"Error processing link {url}: {str(e)}")
             return url, None
-
-    async def __aenter__(self):
-        """Async context manager entry."""
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - cleanup resources."""
-        if self.http_client is not None:
-            await self.http_client.aclose()
-
-        if self.scraper_manager is not None:
-            await self.scraper_manager.cleanup()
