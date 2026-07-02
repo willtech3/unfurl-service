@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from bs4 import BeautifulSoup
 
+from ..url_utils import is_instagram_login_url, is_instagram_static_asset_url
 from .base import BaseScraper, ScrapingResult
 
 # Enhanced Playwright import with comprehensive debugging
@@ -324,6 +325,20 @@ class PlaywrightScraper(BaseScraper):
             # Navigate with realistic timing
             await page.goto(url, wait_until="domcontentloaded")
 
+            # Fail fast if Instagram bounced us to the login wall — there is
+            # no post metadata there, so waiting for selectors is pointless.
+            if is_instagram_login_url(page.url):
+                self.logger.warning(
+                    f"Redirected to Instagram login wall for {url} "
+                    f"(final URL: {page.url})"
+                )
+                return ScrapingResult(
+                    success=False,
+                    error="Redirected to Instagram login page (bot detection)",
+                    method=self.name,
+                    response_time_ms=self.measure_time(start_time),
+                )
+
             # Wait for content to load with timeout (check for presence, not visibility)
             try:
                 await page.wait_for_selector(
@@ -453,11 +468,22 @@ class PlaywrightScraper(BaseScraper):
                 # Try to parse likes and comments from description
                 self._parse_engagement_data(description, data)
 
-            # Extract media URLs
+            # Extract media URLs (rejecting static site assets like the
+            # Instagram logo served on login/error pages)
+            image_url = None
             if og_image and og_image.get("content"):
-                data["image_url"] = og_image.get("content")
+                image_url = og_image.get("content")
             elif twitter_image and twitter_image.get("content"):
-                data["image_url"] = twitter_image.get("content")
+                image_url = twitter_image.get("content")
+
+            if image_url and is_instagram_static_asset_url(image_url):
+                self.logger.warning(
+                    f"Ignoring static Instagram asset as image: {image_url}"
+                )
+                image_url = None
+
+            if image_url:
+                data["image_url"] = image_url
 
             # Extract video URL for reels/videos
             video_url = None
@@ -488,9 +514,12 @@ class PlaywrightScraper(BaseScraper):
             # Extract additional data from page JavaScript and elements
             self._extract_enhanced_page_data(soup, data)
 
-            # Ensure we have at least basic data
+            # Ensure we have real post content: media or author/caption.
+            # A generic title alone (e.g. "Instagram" on the login page)
+            # is not enough to build a useful unfurl.
             if not any(
-                key in data for key in ["title", "caption", "image_url", "video_url"]
+                data.get(key)
+                for key in ["username", "caption", "image_url", "video_url"]
             ):
                 return None
 

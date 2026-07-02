@@ -32,3 +32,40 @@ def test_video_host_validation_rejects_untrusted_fcdn_domains() -> None:
 
     assert formatter._is_instagram_video_url("https://video.xx.fbcdn.net/video.mp4")
     assert not formatter._is_instagram_video_url("https://attacker.fcdn.us/video.mp4")
+
+
+def test_format_unfurl_returns_none_without_meaningful_content() -> None:
+    """Data without author, caption, or media must not produce a
+    placeholder unfurl (e.g. 'Instagram User' + Instagram logo)."""
+    formatter = SlackFormatter()
+
+    unfurl = formatter.format_unfurl_data(
+        {
+            "url": "https://www.instagram.com/reel/ABC123/",
+            "content_type": "reel",
+            "is_video": True,
+            "title": "Instagram",
+            "username": None,
+            "caption": None,
+            "image_url": None,
+            "video_url": None,
+        }
+    )
+
+    assert unfurl is None
+
+
+def test_format_unfurl_still_works_with_image_only() -> None:
+    """Real media without a username should still unfurl."""
+    formatter = SlackFormatter()
+
+    unfurl = formatter.format_unfurl_data(
+        {
+            "url": "https://www.instagram.com/p/ABC123/",
+            "content_type": "photo",
+            "image_url": "https://scontent.cdninstagram.com/image.jpg",
+        }
+    )
+
+    assert unfurl is not None
+    assert "blocks" in unfurl

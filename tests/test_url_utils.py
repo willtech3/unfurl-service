@@ -5,6 +5,8 @@ from src.unfurl_processor.url_utils import (
     extract_instagram_id,
     get_cache_key,
     get_cache_ttl,
+    is_instagram_login_url,
+    is_instagram_static_asset_url,
     is_instagram_video_url,
     validate_instagram_url,
 )
@@ -158,6 +160,71 @@ class TestIsInstagramVideoUrl:
         """Test handling of empty URL."""
         assert not is_instagram_video_url("")
         assert not is_instagram_video_url(None)
+
+
+class TestIsInstagramLoginUrl:
+    """Tests for is_instagram_login_url function."""
+
+    def test_login_redirect_url(self):
+        """Login wall URLs (bot detection redirect target) are detected."""
+        url = (
+            "https://www.instagram.com/accounts/login/"
+            "?next=https%3A%2F%2Fwww.instagram.com%2Freel%2FABC123&is_from_rle"
+        )
+        assert is_instagram_login_url(url)
+
+    def test_challenge_url(self):
+        """Challenge/checkpoint URLs are detected."""
+        assert is_instagram_login_url("https://www.instagram.com/challenge/")
+
+    def test_post_url_not_login(self):
+        """Regular media URLs are not flagged."""
+        assert not is_instagram_login_url("https://www.instagram.com/p/ABC123/")
+        assert not is_instagram_login_url("https://www.instagram.com/reel/XYZ456/")
+
+    def test_non_instagram_login_not_flagged(self):
+        """Login paths on other domains are ignored."""
+        assert not is_instagram_login_url("https://example.com/accounts/login/")
+
+    def test_invalid_input(self):
+        """Invalid input is handled gracefully."""
+        assert not is_instagram_login_url("")
+        assert not is_instagram_login_url(None)
+
+
+class TestIsInstagramStaticAssetUrl:
+    """Tests for is_instagram_static_asset_url function."""
+
+    def test_login_page_logo_rejected(self):
+        """The Instagram logo served on the login page is a static asset."""
+        url = "https://static.cdninstagram.com/rsrc.php/v4/yD/r/R0fBIMurK8v.png"
+        assert is_instagram_static_asset_url(url)
+
+    def test_favicon_rejected(self):
+        """Instagram favicon under /static/ is a static asset."""
+        url = (
+            "https://www.instagram.com/static/images/ico/"
+            "favicon-192.png/68d99ba29cc8.png"
+        )
+        assert is_instagram_static_asset_url(url)
+
+    def test_real_post_media_allowed(self):
+        """Real post media on scontent CDN is not a static asset."""
+        url = (
+            "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/"
+            "12345_n.jpg?stp=dst-jpg"
+        )
+        assert not is_instagram_static_asset_url(url)
+
+    def test_fbcdn_media_allowed(self):
+        """Video media on fbcdn is not a static asset."""
+        url = "https://video-iad3-1.xx.fbcdn.net/v/t50.2886-16/video.mp4"
+        assert not is_instagram_static_asset_url(url)
+
+    def test_invalid_input(self):
+        """Invalid input is handled gracefully."""
+        assert not is_instagram_static_asset_url("")
+        assert not is_instagram_static_asset_url(None)
 
 
 class TestGetCacheKey:

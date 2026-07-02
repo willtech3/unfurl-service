@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from bs4 import BeautifulSoup
 
+from ..url_utils import is_instagram_login_url, is_instagram_static_asset_url
 from .base import BaseScraper, ScrapingResult
 
 
@@ -108,6 +109,21 @@ class HttpScraper(BaseScraper):
                 # Step 2: Navigate to target URL
                 response = await client.get(url)
                 response.raise_for_status()
+
+            # Instagram 302s bot-flagged/anonymous requests to the login
+            # page; the response is 200 OK but contains no post data.
+            final_url = str(response.url)
+            if is_instagram_login_url(final_url):
+                self.logger.warning(
+                    f"Redirected to Instagram login wall for {url} "
+                    f"(final URL: {final_url})"
+                )
+                return ScrapingResult(
+                    success=False,
+                    error="Redirected to Instagram login page (bot detection)",
+                    method=self.name,
+                    response_time_ms=self.measure_time(start_time),
+                )
 
             # Log response details for debugging
             self.logger.info(f"Response status: {response.status_code}")
@@ -283,14 +299,23 @@ class HttpScraper(BaseScraper):
                 if content_type == "photo":
                     content_type = "video"
 
+            image_url = (
+                og_image.get("content")
+                if og_image
+                else twitter_image.get("content") if twitter_image else None
+            )
+            # Reject static site assets (e.g. the Instagram logo served on
+            # login/error pages) — they are not post media.
+            if image_url and is_instagram_static_asset_url(image_url):
+                self.logger.warning(
+                    f"Ignoring static Instagram asset as image: {image_url}"
+                )
+                image_url = None
+
             data = {
                 "post_id": self.extract_post_id(url),
                 "url": url,
-                "image_url": (
-                    og_image.get("content")
-                    if og_image
-                    else twitter_image.get("content") if twitter_image else None
-                ),
+                "image_url": image_url,
                 "video_url": video_url,
                 "title": (
                     og_title.get("content")
@@ -324,11 +349,14 @@ class HttpScraper(BaseScraper):
             # Try to extract enhanced data
             self._extract_enhanced_data(soup, data)
 
-            # Only return data if we have essential metadata
+            # Only return data if we have real post content: media, or
+            # parsed author/caption. A bare description with nothing else
+            # is typical of login/error pages and produces junk unfurls.
             if (
                 data.get("image_url")
                 or data.get("video_url")
-                or data.get("description")
+                or data.get("username")
+                or data.get("caption")
             ):
                 return data
 

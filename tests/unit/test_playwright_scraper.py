@@ -38,7 +38,7 @@ class TestPlaywrightScraperLifecycle:
         scraper.context = AsyncMock()
         scraper.is_initialized = True
 
-        asyncio.get_event_loop().run_until_complete(scraper.cleanup())
+        asyncio.run(scraper.cleanup())
 
         assert driver.stopped is True
         assert scraper._playwright_driver is None
@@ -52,7 +52,7 @@ class TestPlaywrightScraperLifecycle:
 
         scraper = PlaywrightScraper()
         # Should not raise
-        asyncio.get_event_loop().run_until_complete(scraper.cleanup())
+        asyncio.run(scraper.cleanup())
         assert scraper.is_initialized is False
 
     def test_driver_reference_stored_on_instance(self):

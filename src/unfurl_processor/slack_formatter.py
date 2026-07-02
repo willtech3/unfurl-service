@@ -36,6 +36,15 @@ class SlackFormatter:
         if not data:
             return None
 
+        # Refuse to build placeholder unfurls: without an author, caption,
+        # or any media there is nothing useful to show, and a bare link is
+        # better than a generic "Instagram User" card.
+        if not self._has_meaningful_content(data):
+            self.logger.info(
+                "Skipping unfurl: no meaningful Instagram content extracted"
+            )
+            return None
+
         try:
             is_fallback = data.get("is_fallback", False)
             # Prefer video path when applicable
@@ -51,6 +60,12 @@ class SlackFormatter:
         except Exception as e:
             self.logger.warning(f"Failed to format unfurl data: {e}")
             return self._format_basic_unfurl(data)
+
+    def _has_meaningful_content(self, data: Dict[str, Any]) -> bool:
+        """Check that scraped data contains real post content."""
+        return any(
+            data.get(key) for key in ("username", "caption", "image_url", "video_url")
+        )
 
     def _format_video_content_unfurl(
         self, data: Dict[str, Any], is_fallback: bool
