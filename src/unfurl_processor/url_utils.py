@@ -126,6 +126,69 @@ def validate_instagram_url(url: str) -> bool:
     return _get_instagram_media_parts(url) is not None
 
 
+def is_instagram_login_url(url: str) -> bool:
+    """
+    Check if URL is Instagram's login/challenge wall.
+
+    Instagram redirects anonymous or bot-flagged requests to
+    /accounts/login/?next=... — reaching this page means scraping failed,
+    even though the HTTP response is 200 OK.
+
+    Args:
+        url: Final URL after redirects
+
+    Returns:
+        True if URL is a login or challenge page
+    """
+    parsed_url = _get_parsed_instagram_url(url)
+    if parsed_url is None:
+        return False
+
+    parsed, hostname = parsed_url
+    if not _is_instagram_hostname(hostname):
+        return False
+
+    path = parsed.path.lower()
+    return path.startswith("/accounts/login") or path.startswith("/challenge")
+
+
+def is_instagram_static_asset_url(url: str) -> bool:
+    """
+    Check if URL points to a static Instagram site asset (logos, icons, UI
+    sprites) rather than real post media.
+
+    The login page advertises the Instagram logo
+    (e.g. static.cdninstagram.com/rsrc.php/...) which must never be used as
+    a post image. Real post media lives on scontent-*.cdninstagram.com or
+    *.fbcdn.net and never under /rsrc.php or /static/.
+
+    Args:
+        url: Image or video URL to check
+
+    Returns:
+        True if URL is a static site asset, not post media
+    """
+    if not isinstance(url, str) or not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path.lower()
+
+    if hostname == "static.cdninstagram.com":
+        return True
+    if "/rsrc.php/" in path or path.startswith("/rsrc.php"):
+        return True
+    if _is_instagram_hostname(hostname) and path.startswith("/static/"):
+        return True
+
+    return False
+
+
 def is_instagram_video_url(url: str) -> bool:
     """
     Check if URL is likely an Instagram video URL.
