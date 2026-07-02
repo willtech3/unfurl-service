@@ -13,9 +13,7 @@ class TestHttpScraperBehavior:
         from unfurl_processor.scrapers.http_scraper import HttpScraper
 
         scraper = HttpScraper()
-        result = asyncio.get_event_loop().run_until_complete(
-            scraper.scrape("https://example.com/not-instagram")
-        )
+        result = asyncio.run(scraper.scrape("https://example.com/not-instagram"))
 
         assert result.success is False
         assert "Invalid Instagram URL" in result.error
@@ -38,7 +36,7 @@ class TestHttpScraperBehavior:
             await scraper.scrape("https://www.instagram.com/p/TEST123/")
             await bg
 
-        asyncio.get_event_loop().run_until_complete(run_test())
+        asyncio.run(run_test())
         assert len(completed_flag) == 1, "Background task should have completed"
 
     def test_scrape_uses_async_http_not_requests(self):
@@ -77,9 +75,7 @@ class TestHttpScraperBehavior:
             "unfurl_processor.scrapers.http_scraper.httpx.AsyncClient",
             return_value=client,
         ):
-            result = asyncio.get_event_loop().run_until_complete(
-                scraper.scrape(post_url)
-            )
+            result = asyncio.run(scraper.scrape(post_url))
 
         assert result.success is False
         assert "login" in result.error.lower()
