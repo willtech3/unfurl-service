@@ -88,3 +88,10 @@ Tests are in `tests/` directory:
 uv run pytest -v
 uv run pytest --cov=src  # With coverage
 ```
+
+CDK stack tests (`tests/test_infrastructure_assets.py`) are skipped unless `RUN_CDK_TESTS=true`, and CI skips them too. Run `RUN_CDK_TESTS=true uv run pytest` after touching `cdk/`.
+
+## Deploy Pipeline
+
+- PR CI runs lint and tests only. Merging to `main` deploys to production (`UnfurlService-us-east-2`) via `.github/workflows/deploy.yml`, so check that run after merging.
+- The `aws-cdk` CLI version (`cdk/package.json` and its lockfile) and the `aws-cdk-lib` cap (`pyproject.toml` `[cdk]` extra) move together. PR CI never synthesizes the stack, so a lib that emits a newer cloud-assembly schema than the CLI reads only fails on main, with "Cloud assembly schema version mismatch".
