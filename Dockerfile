@@ -24,6 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     pkg-config \
     && rm -rf /var/lib/apt/lists/* \
+    # python3-dev can pull a newer python3.12 from noble-updates whose stdlib
+    # package restores the PEP 668 EXTERNALLY-MANAGED marker the Playwright
+    # base image removes; drop it again so this throwaway build stage can pip
+    # install (packages go to /app via --target, not the system site-packages).
+    && rm -f /usr/lib/python3*/EXTERNALLY-MANAGED \
     && echo "✅ Build dependencies installed" \
     && pkg-config --exists libxml-2.0 && echo "✅ libxml2 found" \
     && pkg-config --exists libxslt && echo "✅ libxslt found" \
