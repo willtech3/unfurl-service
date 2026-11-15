@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -22,7 +23,7 @@ import httpx
 import logfire
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 
@@ -44,6 +45,10 @@ SlackEvent = Dict[str, Any]
 UnfurlData = Dict[str, Any]
 UnfurlsDict = Dict[str, UnfurlData]
 
+# A dedup claim older than this is stale. Matches the processor Lambda timeout
+# (5 minutes), so a live invocation can never hold a claim this old.
+DEDUP_WINDOW_SECONDS = 300
+
 logger = Logger()
 logfire_logger_configured = True  # configured in entrypoint
 
@@ -63,6 +68,8 @@ class AsyncUnfurlHandler:
         self.dynamodb = None
         self.http_client = None
         self.deduplication_table = None
+        # Lock tokens for dedup entries this invocation owns, keyed by cache key
+        self._dedup_tokens: Dict[str, str] = {}
         self.asset_manager = None
 
         # Initialize on first use for better cold start performance
@@ -345,7 +352,12 @@ class AsyncUnfurlHandler:
         return self.deduplication_table
 
     def _is_url_being_processed(self, url: str) -> bool:
-        """Check if URL is being processed using deduplication table."""
+        """Claim ``url`` in the deduplication table.
+
+        Returns True when another invocation holds a live claim (skip the URL).
+        Returns False when processing may proceed; if a claim was written, its
+        token is remembered so ``_release_url`` deletes only our own entry.
+        """
         try:
             table = self._get_deduplication_table()
 
@@ -356,18 +368,28 @@ class AsyncUnfurlHandler:
                 )
                 return False
 
-            # Try to add URL to deduplication table with conditional write
-            # Use canonical URL as deduplication key for consistency
+            # Conditional write keyed by canonical URL. DynamoDB TTL deletion is
+            # lazy (can lag hours), so entries older than the processing window
+            # (which matches the 5-minute Lambda timeout) are treated as stale
+            # and may be taken over.
             cache_key = get_cache_key(url)
+            now = int(time.time())
+            token = uuid.uuid4().hex
             table.put_item(
                 Item={
                     "url": cache_key,
-                    "processing_started": int(time.time()),
-                    "ttl": int(time.time()) + 300,  # 5 minutes TTL
+                    "processing_started": now,
+                    "lock_token": token,
+                    "ttl": now + DEDUP_WINDOW_SECONDS,
                 },
-                ConditionExpression="attribute_not_exists(#url)",
+                ConditionExpression=(
+                    "attribute_not_exists(#url) "
+                    "OR processing_started < :stale_before"
+                ),
                 ExpressionAttributeNames={"#url": "url"},
+                ExpressionAttributeValues={":stale_before": now - DEDUP_WINDOW_SECONDS},
             )
+            self._dedup_tokens[cache_key] = token
 
             # If we get here, the URL was not being processed
             self.logger.info(f"Started processing URL: {url}")
@@ -378,10 +400,40 @@ class AsyncUnfurlHandler:
                 # URL is already being processed
                 self.logger.info(f"URL already being processed: {url}")
                 return True
+            self.logger.error(f"Failed to check deduplication table: {str(e)}")
+            # On error, allow processing to avoid blocking
+            return False
+        except BotoCoreError as e:
+            self.logger.error(f"Failed to reach deduplication table: {str(e)}")
+            return False
+
+    def _release_url(self, url: str) -> None:
+        """Delete our dedup claim for ``url`` so later shares are not skipped.
+
+        Only deletes the entry if it still carries our token, so a claim taken
+        over by another invocation (after ours went stale) is left intact.
+        Never raises: a failed release just falls back to staleness expiry.
+        """
+        cache_key = get_cache_key(url)
+        token = self._dedup_tokens.pop(cache_key, None)
+        if token is None:
+            return
+        table = self._get_deduplication_table()
+        if table is None:
+            return
+        try:
+            table.delete_item(
+                Key={"url": cache_key},
+                ConditionExpression="lock_token = :token",
+                ExpressionAttributeValues={":token": token},
+            )
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                self.logger.info(f"Dedup claim for {url} was taken over; kept")
             else:
-                self.logger.error(f"Failed to check deduplication table: {str(e)}")
-                # On error, allow processing to avoid blocking
-                return False
+                self.logger.warning(f"Failed to release dedup claim: {str(e)}")
+        except BotoCoreError as e:
+            self.logger.warning(f"Failed to release dedup claim: {str(e)}")
 
     async def process_event(
         self, event: Dict[str, Any], context: LambdaContext
@@ -447,33 +499,44 @@ class AsyncUnfurlHandler:
             # Initialize async Slack client
             slack_client = AsyncWebClient(token=slack_token)
 
-            # Process links concurrently for better performance
-            tasks = []
-            for link in instagram_links:
-                if self._is_url_being_processed(link["canonical_url"]):
-                    self.logger.info(
-                        f"Skipping URL {link['original_url']} as it's being processed"
-                    )
-                    continue
-                task = self._process_single_link(link["canonical_url"])
-                tasks.append(task)
+            # Process links concurrently for better performance.
+            # Track which link each task belongs to: dedup skips can make the
+            # task list shorter than instagram_links, so results must not be
+            # matched back by index into instagram_links.
+            pending_links: List[Dict[str, str]] = []
+            try:
+                tasks = []
+                for link in instagram_links:
+                    if self._is_url_being_processed(link["canonical_url"]):
+                        self.logger.info(
+                            f"Skipping URL {link['original_url']} "
+                            "as it's being processed"
+                        )
+                        continue
+                    pending_links.append(link)
+                    tasks.append(self._process_single_link(link["canonical_url"]))
 
-            # Execute all tasks concurrently
-            unfurl_results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Execute all tasks concurrently
+                unfurl_results = await asyncio.gather(*tasks, return_exceptions=True)
+            finally:
+                # Release dedup claims so the same link shared again later is
+                # served (from cache) instead of being skipped until the claim
+                # goes stale.
+                for link in pending_links:
+                    self._release_url(link["canonical_url"])
 
             # Collect successful unfurls
             unfurls = {}
-            for i, result in enumerate(unfurl_results):
-                if isinstance(result, Exception):
-                    original_url = instagram_links[i]["original_url"]
+            for link, result in zip(pending_links, unfurl_results):
+                if isinstance(result, BaseException):
                     self.logger.error(
-                        f"Error processing link {original_url}: {str(result)}"
+                        f"Error processing link {link['original_url']}: {str(result)}"
                     )
                     continue
 
-                url, unfurl_data = result
+                _, unfurl_data = result
                 if unfurl_data:
-                    unfurls[instagram_links[i]["original_url"]] = unfurl_data
+                    unfurls[link["original_url"]] = unfurl_data
 
             # Send unfurls to Slack if any succeeded
             if unfurls:
