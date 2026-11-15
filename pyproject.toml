@@ -39,7 +39,10 @@ dev = [
     "moto>=4.2.11,<5.0",
 ]
 cdk = [
-    "aws-cdk-lib>=2.110.0",
+    # Upper bound keeps CI deploys reproducible: newer aws-cdk-lib releases can
+    # emit a cloud assembly schema the pinned CLI (cdk/package.json) cannot
+    # read. Raise this together with the aws-cdk CLI version.
+    "aws-cdk-lib>=2.110.0,<2.278.0",
     "constructs>=10.3.0",
 ]
 # Optional compression support - may not work in AWS Lambda due to C backend
