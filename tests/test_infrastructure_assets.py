@@ -53,10 +53,10 @@ def test_assets_bucket_configuration(template: Template) -> None:
     }
 
     assert bucket.get("PublicAccessBlockConfiguration") == {
-        "BlockPublicAcls": False,
-        "BlockPublicPolicy": False,
-        "IgnorePublicAcls": False,
-        "RestrictPublicBuckets": False,
+        "BlockPublicAcls": True,
+        "BlockPublicPolicy": True,
+        "IgnorePublicAcls": True,
+        "RestrictPublicBuckets": True,
     }
 
 
@@ -66,32 +66,16 @@ def match(template_and_match):
     return match
 
 
-def test_assets_bucket_is_public_during_migration(
-    template: Template, match: Match
-) -> None:
-    """During the phased migration the bucket still grants public read so old
-    direct-S3 URLs in existing Slack messages keep resolving. The follow-up
-    PR after the lifecycle window will remove this statement."""
-    template.has_resource_properties(
-        "AWS::S3::BucketPolicy",
-        {
-            "PolicyDocument": match.object_like(
-                {
-                    "Statement": match.array_with(
-                        [
-                            match.object_like(
-                                {
-                                    "Action": "s3:GetObject",
-                                    "Effect": "Allow",
-                                    "Principal": {"AWS": "*"},
-                                }
-                            )
-                        ]
-                    )
-                }
-            )
-        },
-    )
+def test_assets_bucket_is_private(template: Template) -> None:
+    """Assets are served only through CloudFront OAC: no bucket-policy
+    statement may grant access to an anonymous principal."""
+    policies = template.find_resources("AWS::S3::BucketPolicy")
+    assert policies, "Expected a bucket policy (CloudFront OAC grant)"
+    for policy in policies.values():
+        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+            principal = statement.get("Principal")
+            assert principal != "*"
+            assert not (isinstance(principal, dict) and principal.get("AWS") == "*")
 
 
 def test_cloudfront_distribution_uses_oac(template: Template, match: Match) -> None:
@@ -127,12 +111,7 @@ def test_cloudfront_distribution_uses_oac(template: Template, match: Match) -> N
 def test_assets_bucket_policy_grants_cloudfront(
     template: Template, match: Match
 ) -> None:
-    """Bucket policy must include a CloudFront service-principal grant (OAC).
-
-    During the phased migration this statement coexists with the public-read
-    statement from `public_read_access=True`; after lockdown only this grant
-    will remain.
-    """
+    """Bucket policy must include a CloudFront service-principal grant (OAC)."""
     template.has_resource_properties(
         "AWS::S3::BucketPolicy",
         {
